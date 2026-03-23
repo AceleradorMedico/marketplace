@@ -1495,8 +1495,7 @@ function filterAdminTable(q){if(!q){renderAdminTable(allInteresses);return;}cons
 
 function exportCSV(){
   const rows=[['Aluno','Produto','Mentor','Tipo','Data'],...allInteresses.map(i=>{const a=i.profiles||{};const p=i.produtos||{};const m=p.profiles||{};return[[a.nome,a.sobrenome].join(' '),p.titulo,[m.nome,m.sobrenome].join(' '),p.tipo,new Date(i.criado_em).toLocaleDateString('pt-BR')];})];
-  const csv=rows.map(r=>r.map(c=>'"'+(c||'').toString().replace(/"/g,'""')+'"').join(',')).join('
-');
+  const csv=rows.map(r=>r.map(c=>'"'+(c||'').toString().replace(/"/g,'""')+'"').join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='am-connect.csv';a.click();
 }
 
