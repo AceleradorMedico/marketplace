@@ -555,11 +555,14 @@
   </nav>
   <div class="page-content">
     <div class="profile-header">
-      <div class="profile-avatar-wrap" onclick="document.getElementById('profile-photo-input').click()" title="Alterar foto">
-        <img id="profile-photo-display" alt="">
-        <span id="profile-initials-display" class="profile-avatar-initials"></span>
-        <div class="profile-avatar-overlay">📷</div>
-        <input type="file" id="profile-photo-input" accept="image/*" style="display:none;position:absolute;inset:0;opacity:0;cursor:pointer;" onchange="uploadProfilePhoto(event)">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0;">
+        <div class="profile-avatar-wrap" onclick="document.getElementById('profile-photo-input').click()" title="Alterar foto">
+          <img id="profile-photo-display" alt="">
+          <span id="profile-initials-display" class="profile-avatar-initials"></span>
+          <div class="profile-avatar-overlay">📷</div>
+          <input type="file" id="profile-photo-input" accept="image/*" style="display:none;position:absolute;inset:0;opacity:0;cursor:pointer;" onchange="uploadProfilePhoto(event)">
+        </div>
+        <button id="remove-photo-btn" onclick="removeProfilePhoto()" style="display:none;background:none;border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:4px 10px;font-size:11px;font-family:Syne,sans-serif;font-weight:600;color:var(--gray-600);cursor:pointer;">✕ Remover foto</button>
       </div>
       <div>
         <div class="profile-name" id="profile-display-name">–</div>
@@ -792,6 +795,7 @@
           <div class="upload-icon" id="edit-logo-icon">🖼️</div>
           <div class="upload-label" id="edit-logo-label">Clique para trocar a imagem</div>
           <div class="upload-hint">JPG, PNG ou WEBP</div>
+          <button id="edit-remove-logo" onclick="removeMediaFromProduct('logo_url')" style="display:none;margin-top:8px;background:none;border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:5px 12px;font-size:12px;font-family:Syne,sans-serif;font-weight:600;color:var(--danger);cursor:pointer;position:relative;z-index:2;">✕ Remover imagem</button>
         </div>
       </div>
       <div class="form-group">
@@ -802,6 +806,7 @@
           <div class="upload-icon" id="edit-video-icon">🎬</div>
           <div class="upload-label" id="edit-video-label">Clique para trocar o vídeo</div>
           <div class="upload-hint">MP4 ou MOV · Máx. 5 minutos</div>
+          <button id="edit-remove-video" onclick="removeMediaFromProduct('video_url')" style="display:none;margin-top:8px;background:none;border:1px solid var(--gray-200);border-radius:var(--radius-sm);padding:5px 12px;font-size:12px;font-family:Syne,sans-serif;font-weight:600;color:var(--danger);cursor:pointer;position:relative;z-index:2;">✕ Remover vídeo</button>
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:12px;padding-top:4px;border-top:1px solid var(--gray-100);">
@@ -815,178 +820,158 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ═══════════════════════════════════════════
-// CONFIGURAÇÃO SUPABASE
-// ═══════════════════════════════════════════
 const SUPABASE_URL = 'https://pjiurhrrackhfpyjimgp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBqaXVyaHJyYWNraGZweWppbWdwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODc2NDksImV4cCI6MjA4OTg2MzY0OX0.IS-GFS1UiNDy1qlO2-T4x57FO2ob5Kmld-lYMIs3Lv4';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{persistSession:true,autoRefreshToken:true}});
 
-// ═══════════════════════════════════════════
-// ESTADO GLOBAL
-// ═══════════════════════════════════════════
-let currentUser = null;
-let currentProfile = null;
-let currentProductId = null; // produto aberto no detalhe
-let allInteresses = []; // cache para filtro admin
-let pendingInterest = false; // flag: registrar interesse após login
+let currentUser=null,currentProfile=null,currentProductId=null,allInteresses=[],allProducts=[],activeFilter='todos';
 
-// ═══════════════════════════════════════════
-// INICIALIZAÇÃO
-// ═══════════════════════════════════════════
-(async function init() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) await onLogin(session.user, false);
+// INIT
+(async function init(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(session) await onLogin(session.user,false);
   await loadMarketplace();
   await loadStats();
 })();
 
-sb.auth.onAuthStateChange(async (event, session) => {
-  if (event === 'SIGNED_IN' && session) await onLogin(session.user, false);
-  if (event === 'SIGNED_OUT') onLogout();
+sb.auth.onAuthStateChange(async(event,session)=>{
+  if(event==='SIGNED_IN'&&session){if(!currentUser||currentUser.id!==session.user.id)await onLogin(session.user,false);}
+  if(event==='SIGNED_OUT')onLogout();
 });
 
-// ═══════════════════════════════════════════
-// NAVEGAÇÃO
-// ═══════════════════════════════════════════
-function goTo(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+// NAVIGATION
+function goTo(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const sc=document.getElementById(id);if(sc)sc.classList.add('active');
   window.scrollTo(0,0);
-  if (id === 'vendor-profile' && currentUser) { loadProfile(); loadVendorProducts(); loadVendorInteresses(); }
-  if (id === 'marketplace') loadMarketplace();
-  if (id === 'admin-dashboard') resetAdminLock();
-  if (id === 'new-product') resetProductForm();
+  if(id==='vendor-profile'&&currentUser){loadProfile();loadVendorProducts();loadVendorInteresses();}
+  if(id==='marketplace')loadMarketplace();
+  if(id==='admin-dashboard')resetAdminLock();
+  if(id==='new-product')resetProductForm();
 }
 
-// ═══════════════════════════════════════════
 // AUTH
-// ═══════════════════════════════════════════
-async function onLogin(user, redirect = true) {
-  currentUser = user;
-  const { data: profile } = await sb.from('profiles').select('*').eq('id', user.id).single();
-  currentProfile = profile;
+async function onLogin(user,redirect=true){
+  currentUser=user;
+  const{data:profile}=await sb.from('profiles').select('*').eq('id',user.id).single();
+  currentProfile=profile||null;
   updateNavUI();
-  if (redirect) goTo('vendor-profile');
+  if(redirect)goTo('vendor-profile');
 }
 
-function onLogout() {
-  currentUser = null; currentProfile = null;
-  updateNavUI();
-  goTo('marketplace');
-}
+function onLogout(){currentUser=null;currentProfile=null;updateNavUI();goTo('marketplace');}
 
-function updateNavUI() {
-  const loggedIn = !!currentUser;
-  const actionsEl = document.getElementById('navbar-actions-public');
-  if (loggedIn && currentProfile) {
-    const initials = getInitials(currentProfile.nome || currentUser.email);
-    document.getElementById('nav-avatar-initials').textContent = initials;
-    document.getElementById('nav-avatar-main').style.display = 'flex';
-    document.getElementById('profile-nav-initials').textContent = initials;
-    document.getElementById('profile-initials-display').textContent = initials;
-    if (currentProfile.foto_url) {
-      const img = document.getElementById('nav-avatar-img');
-      img.src = currentProfile.foto_url; img.style.display = 'block';
-      document.getElementById('nav-avatar-initials').style.display = 'none';
-    }
+function updateNavUI(){
+  const navAvatar=document.getElementById('nav-avatar-main');
+  const navInitials=document.getElementById('nav-avatar-initials');
+  const navImg=document.getElementById('nav-avatar-img');
+  const btnCriar=document.querySelector('.btn-nav-primary');
+  if(currentUser&&currentProfile){
+    const initials=getInitials(currentProfile.nome||currentUser.email);
+    if(navAvatar)navAvatar.style.display='flex';
+    if(navInitials)navInitials.textContent=initials;
+    if(navImg&&currentProfile.foto_url){navImg.src=currentProfile.foto_url;navImg.style.display='block';if(navInitials)navInitials.style.display='none';}
+    if(btnCriar)btnCriar.style.display='none';
   } else {
-    document.getElementById('nav-avatar-main').style.display = 'none';
+    if(navAvatar)navAvatar.style.display='none';
+    if(btnCriar)btnCriar.style.display='';
   }
 }
 
-async function doRegister() {
-  const nome = v('reg-nome'), sobrenome = v('reg-sobrenome'), email = v('reg-email'), senha = v('reg-senha'), esp = v('reg-especialidade');
-  if (!nome||!email||!senha) { showErr('register-error','Preencha todos os campos obrigatórios.'); return; }
-  if (senha.length < 8) { showErr('register-error','Senha precisa ter pelo menos 8 caracteres.'); return; }
+// REGISTER (mentor page)
+async function doRegister(){
+  const nome=v('reg-nome'),sobrenome=v('reg-sobrenome'),email=v('reg-email'),senha=v('reg-senha'),esp=v('reg-especialidade');
+  const errEl=document.getElementById('register-error');
+  if(!nome||!email||!senha){showErrEl(errEl,'Preencha nome, e-mail e senha.');return;}
+  if(senha.length<8){showErrEl(errEl,'Senha precisa ter pelo menos 8 caracteres.');return;}
   setBtnLoading('btn-register',true);
-  const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { nome, sobrenome } } });
-  if (error) { showErr('register-error', translateError(error.message)); setBtnLoading('btn-register',false); return; }
-  if (data.user) {
-    await sb.from('profiles').upsert({ id: data.user.id, nome, sobrenome, especialidade: esp, tipo: 'mentor' });
-    await onLogin(data.user, false);
-    showToast('✓ Conta criada! Bem-vindo ao AM Connect.');
+  const{data,error}=await sb.auth.signUp({email,password:senha,options:{data:{nome,sobrenome}}});
+  if(error){showErrEl(errEl,translateError(error.message));setBtnLoading('btn-register',false);return;}
+  if(data.user){
+    await sb.from('profiles').upsert({id:data.user.id,nome,sobrenome,especialidade:esp,tipo:'mentor'},{onConflict:'id'});
+    currentUser=data.user;
+    const{data:prof}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
+    currentProfile=prof;
+    updateNavUI();
+    showToast('Conta criada! Complete seu perfil.');
     goTo('vendor-profile');
   }
   setBtnLoading('btn-register',false);
 }
 
-async function doCreateAccount(prefix, thenInterest = false) {
-  const nome = v(prefix+'-nome'), sobrenome = v(prefix+'-sobrenome'), email = v(prefix+'-email'), senha = v(prefix+'-senha');
-  const errId = 'modal-' + (prefix==='mc'?'create':'il') + '-error';
-  if (!nome||!email||!senha) { showErr(errId,'Preencha todos os campos.'); return; }
-  if (senha.length < 8) { showErr(errId,'Senha precisa ter pelo menos 8 caracteres.'); return; }
-  setBtnLoading('btn-'+prefix+'-criar',true);
-  const { data, error } = await sb.auth.signUp({ email, password: senha, options: { data: { nome, sobrenome } } });
-  if (error) { showErr(errId, translateError(error.message)); setBtnLoading('btn-'+prefix+'-criar',false); return; }
-  if (data.user) {
-    await sb.from('profiles').upsert({ id: data.user.id, nome, sobrenome, tipo: 'aluno' });
-    await onLogin(data.user, false);
-    closeModal();
-    showToast('✓ Conta criada com sucesso!');
-    if (thenInterest) await registerInterestNow();
-  }
-  setBtnLoading('btn-'+prefix+'-criar',false);
-}
-
-async function doLogin(prefix = 'login', thenInterest = false) {
-  const email = v(prefix+'-email'), senha = v(prefix+'-senha');
-  const errId = 'modal-' + (prefix==='login'?'login':'li') + '-error';
-  if (!email||!senha) { showErr(errId,'Preencha e-mail e senha.'); return; }
-  setBtnLoading('btn-'+prefix+(prefix==='login'?'':'- login'),true);
-  const btnId = prefix==='login'?'btn-login':'btn-li-login';
+// CREATE ACCOUNT (modal - aluno)
+async function doCreateAccount(prefix,thenInterest=false){
+  const nome=v(prefix+'-nome'),sobrenome=v(prefix+'-sobrenome'),email=v(prefix+'-email'),senha=v(prefix+'-senha');
+  const errId=prefix==='mc'?'modal-create-error':'modal-il-error';
+  const errEl=document.getElementById(errId);
+  if(!nome||!email||!senha){showErrEl(errEl,'Preencha todos os campos.');return;}
+  if(senha.length<8){showErrEl(errEl,'Senha precisa ter pelo menos 8 caracteres.');return;}
+  const btnId='btn-'+prefix+'-criar';
   setBtnLoading(btnId,true);
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
-  if (error) { showErr(errId, translateError(error.message)); setBtnLoading(btnId,false); return; }
-  await onLogin(data.user, false);
-  closeModal();
-  showToast('✓ Bem-vindo de volta!');
-  if (thenInterest) await registerInterestNow();
+  const{data,error}=await sb.auth.signUp({email,password:senha,options:{data:{nome,sobrenome}}});
+  if(error){showErrEl(errEl,translateError(error.message));setBtnLoading(btnId,false);return;}
+  if(data.user){
+    await sb.from('profiles').upsert({id:data.user.id,nome,sobrenome,tipo:'aluno'},{onConflict:'id'});
+    currentUser=data.user;
+    const{data:prof}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
+    currentProfile=prof;
+    updateNavUI();
+    closeModal();
+    showToast('Conta criada com sucesso!');
+    if(thenInterest)await registerInterestNow();
+  }
   setBtnLoading(btnId,false);
 }
 
-async function doLogout() {
-  await sb.auth.signOut();
+// LOGIN
+async function doLogin(prefix='login',thenInterest=false){
+  const email=v(prefix+'-email'),senha=v(prefix+'-senha');
+  const errId=prefix==='login'?'modal-login-error':'modal-li-error';
+  const errEl=document.getElementById(errId);
+  if(!email||!senha){showErrEl(errEl,'Preencha e-mail e senha.');return;}
+  const btnId=prefix==='login'?'btn-login':'btn-li-login';
+  setBtnLoading(btnId,true);
+  const{data,error}=await sb.auth.signInWithPassword({email,password:senha});
+  if(error){showErrEl(errEl,translateError(error.message));setBtnLoading(btnId,false);return;}
+  currentUser=data.user;
+  const{data:prof}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
+  currentProfile=prof;
+  updateNavUI();
+  closeModal();
+  showToast('Bem-vindo de volta!');
+  if(thenInterest)await registerInterestNow();
+  setBtnLoading(btnId,false);
 }
 
-// ═══════════════════════════════════════════
+async function doLogout(){await sb.auth.signOut();}
+
 // MARKETPLACE
-// ═══════════════════════════════════════════
-let allProducts = [];
-let activeFilter = 'todos';
-
-async function loadMarketplace() {
-  const grid = document.getElementById('products-grid');
-  grid.innerHTML = '<div class="empty-state" id="products-loading"><div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;"></div><div style="font-size:14px;color:var(--gray-400);">Carregando produtos…</div></div>';
-  const { data: produtos, error } = await sb.from('produtos').select(`*, profiles(nome, sobrenome, especialidade, foto_url, contato, biografia)`).eq('ativo', true).order('criado_em', { ascending: false });
-  if (error || !produtos) { grid.innerHTML = '<div class="empty-state"><div class="empty-icon">😕</div><div class="empty-title">Erro ao carregar produtos</div></div>'; return; }
-  allProducts = produtos;
-  renderProducts(produtos);
+async function loadMarketplace(){
+  const grid=document.getElementById('products-grid');
+  if(!grid)return;
+  grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);"><div class="spinner" style="width:28px;height:28px;margin:0 auto 12px;border:3px solid var(--gray-200);border-top-color:var(--black);border-radius:50%;animation:spin .6s linear infinite;"></div><div style="font-size:14px;">Carregando…</div></div>';
+  const{data:produtos,error}=await sb.from('produtos').select('*, profiles(nome,sobrenome,especialidade,foto_url,contato,biografia)').eq('ativo',true).order('criado_em',{ascending:false});
+  if(error||!produtos){grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);">Nenhum produto disponível ainda.</div>';return;}
+  allProducts=produtos;renderProducts(produtos);
 }
 
-function renderProducts(produtos) {
-  const grid = document.getElementById('products-grid');
-  const filtered = activeFilter === 'todos' ? produtos : produtos.filter(p => p.tipo === activeFilter);
-  document.getElementById('results-count').textContent = filtered.length + ' resultado' + (filtered.length!==1?'s':'');
-  if (!filtered.length) {
-    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-title">Nenhum produto nesta categoria</div></div>';
-    return;
-  }
-  grid.innerHTML = filtered.map(p => {
-    const mentor = p.profiles || {};
-    const nomeCompleto = [mentor.nome, mentor.sobrenome].filter(Boolean).join(' ') || 'Mentor';
-    const initials = getInitials(nomeCompleto);
-    const badgeClass = {'mentoria':'badge-mentoria','evento':'badge-evento','software':'badge-software','outro':'badge-outro'}[p.tipo]||'badge-outro';
-    const badgeLabel = {'mentoria':'Mentoria','evento':'Evento','software':'Software','outro':'Outro'}[p.tipo]||p.tipo;
-    return `<div class="product-card" data-type="${p.tipo}" data-id="${p.id}" onclick="openProduct('${p.id}')">
-      ${p.logo_url?`<img class="card-cover" src="${p.logo_url}" style="display:block" alt="">`:''}
-      <div class="card-top">
-        <div class="vendor-info">
-          <div class="vendor-avatar">${mentor.foto_url?`<img src="${mentor.foto_url}" alt="">`:''}${!mentor.foto_url?initials:''}</div>
-          <div><div class="vendor-name">${escHtml(nomeCompleto)}</div><div class="vendor-specialty">${escHtml(mentor.especialidade||'')}</div></div>
-        </div>
-        <span class="badge ${badgeClass}">${badgeLabel}</span>
-      </div>
+function renderProducts(produtos){
+  const grid=document.getElementById('products-grid');
+  const filtered=activeFilter==='todos'?produtos:produtos.filter(p=>p.tipo===activeFilter);
+  const countEl=document.getElementById('results-count');
+  if(countEl)countEl.textContent=filtered.length+' resultado'+(filtered.length!==1?'s':'');
+  if(!filtered.length){grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);">Nenhum produto nesta categoria.</div>';return;}
+  const bc={mentoria:'badge-mentoria',evento:'badge-evento',software:'badge-software',outro:'badge-outro'};
+  const bl={mentoria:'Mentoria',evento:'Evento',software:'Software',outro:'Outro'};
+  grid.innerHTML=filtered.map(p=>{
+    const m=p.profiles||{};
+    const nome=[m.nome,m.sobrenome].filter(Boolean).join(' ')||'Mentor';
+    const ini=getInitials(nome);
+    const cover=p.logo_url?`<img class="card-cover" src="${p.logo_url}" style="display:block" alt="">`:'';
+    const avatar=m.foto_url?`<img src="${m.foto_url}" alt="" style="width:100%;height:100%;object-fit:cover;">`:ini;
+    return `<div class="product-card" data-type="${p.tipo}" onclick="openProduct('${p.id}')">
+      ${cover}
+      <div class="card-top"><div class="vendor-info"><div class="vendor-avatar">${avatar}</div><div><div class="vendor-name">${escHtml(nome)}</div><div class="vendor-specialty">${escHtml(m.especialidade||'')}</div></div></div><span class="badge ${bc[p.tipo]||'badge-outro'}">${bl[p.tipo]||p.tipo}</span></div>
       <div class="card-title">${escHtml(p.titulo)}</div>
       <div class="card-desc">${escHtml(p.descricao||'')}</div>
       ${p.video_url?'<div class="card-has-video show">▶ Vídeo de apresentação</div>':''}
@@ -995,159 +980,153 @@ function renderProducts(produtos) {
   }).join('');
 }
 
-function applyFilter(btn) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  activeFilter = btn.dataset.filter;
-  renderProducts(allProducts);
+function applyFilter(btn){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');activeFilter=btn.dataset.filter;renderProducts(allProducts);
 }
 
-async function loadStats() {
-  const [{ count: np }, { count: ni }, { data: mentores }] = await Promise.all([
-    sb.from('produtos').select('*', { count:'exact', head:true }).eq('ativo',true),
-    sb.from('interesses').select('*', { count:'exact', head:true }),
-    sb.from('profiles').select('id', { count:'exact', head:false }).eq('tipo','mentor')
-  ]);
-  document.getElementById('stat-mentores').innerHTML = (mentores?.length||0)+'<span>+</span>';
-  document.getElementById('stat-produtos').innerHTML = (np||0)+'<span>+</span>';
-  document.getElementById('stat-conexoes').innerHTML = (ni||0)+'<span>+</span>';
+async function loadStats(){
+  try{
+    const[r1,r2,r3]=await Promise.all([
+      sb.from('produtos').select('*',{count:'exact',head:true}).eq('ativo',true),
+      sb.from('interesses').select('*',{count:'exact',head:true}),
+      sb.from('profiles').select('*',{count:'exact',head:true}).eq('tipo','mentor')
+    ]);
+    setText('stat-mentores',(r3.count||0)+'+');
+    setText('stat-produtos',(r1.count||0)+'+');
+    setText('stat-conexoes',(r2.count||0)+'+');
+  }catch(e){}
 }
 
-// ═══════════════════════════════════════════
 // PRODUCT DETAIL
-// ═══════════════════════════════════════════
-async function openProduct(id) {
-  currentProductId = id;
-  goTo('product-detail');
-  // reset interest UI
-  document.getElementById('interest-btn-wrap').style.display = 'block';
-  document.getElementById('interest-success').classList.remove('show');
-  const { data: p } = await sb.from('produtos').select(`*, profiles(nome, sobrenome, especialidade, foto_url, contato, biografia)`).eq('id',id).single();
-  if (!p) return;
-  const mentor = p.profiles || {};
-  const nomeCompleto = [mentor.nome, mentor.sobrenome].filter(Boolean).join(' ') || 'Mentor';
-  document.getElementById('detail-breadcrumb-type').textContent = p.tipo;
-  document.getElementById('detail-breadcrumb-title').textContent = p.titulo;
-  document.getElementById('detail-mentor-nome').textContent = nomeCompleto;
-  document.getElementById('detail-mentor-spec').textContent = mentor.especialidade||'';
-  document.getElementById('detail-mentor-bio').textContent = mentor.biografia||'';
-  const avatarEl = document.getElementById('detail-mentor-avatar');
-  const fotoImg = document.getElementById('detail-mentor-foto');
-  if (mentor.foto_url) { fotoImg.src=mentor.foto_url; fotoImg.style.display='block'; avatarEl.textContent=''; avatarEl.appendChild(fotoImg); }
-  else { fotoImg.style.display='none'; avatarEl.textContent=getInitials(nomeCompleto); }
-  const badgeClass = {'mentoria':'badge-mentoria','evento':'badge-evento','software':'badge-software','outro':'badge-outro'}[p.tipo]||'badge-outro';
-  const badgeLabel = {'mentoria':'Mentoria','evento':'Evento','software':'Software','outro':'Outro'}[p.tipo]||p.tipo;
-  document.getElementById('detail-badge').className = 'badge '+badgeClass;
-  document.getElementById('detail-badge').textContent = badgeLabel;
-  document.getElementById('detail-titulo').textContent = p.titulo;
-  document.getElementById('detail-descricao').textContent = p.descricao||'';
-  document.getElementById('detail-tipo').textContent = badgeLabel;
-  document.getElementById('detail-interessados').textContent = '–';
-  // cover
-  const coverEl = document.getElementById('detail-cover');
-  if (p.logo_url) { coverEl.src=p.logo_url; coverEl.style.display='block'; } else { coverEl.style.display='none'; }
-  // video
-  const vidEl = document.getElementById('detail-video');
-  if (p.video_url) { vidEl.src=p.video_url; vidEl.style.display='block'; } else { vidEl.style.display='none'; }
-  // data
-  const metaData = document.getElementById('detail-meta-data');
-  if (p.data_evento) { document.getElementById('detail-data').textContent=new Date(p.data_evento).toLocaleDateString('pt-BR'); metaData.style.display='block'; } else metaData.style.display='none';
-  // contact msg
-  document.getElementById('interest-contact-msg').textContent = nomeCompleto + ' vai entrar em contato contigo em breve.';
-  // interesses count
-  const { count } = await sb.from('interesses').select('*',{count:'exact',head:true}).eq('produto_id',id);
-  document.getElementById('detail-interessados').textContent = (count||0)+' médico'+(count!==1?'s':'');
-  // checar se já demonstrou interesse
-  if (currentUser) {
-    const { data: existe } = await sb.from('interesses').select('id').eq('aluno_id',currentUser.id).eq('produto_id',id).single();
-    if (existe) { document.getElementById('interest-btn-wrap').style.display='none'; document.getElementById('interest-success').classList.add('show'); }
+async function openProduct(id){
+  currentProductId=id;goTo('product-detail');
+  const btnWrap=document.getElementById('interest-btn-wrap');
+  const successEl=document.getElementById('interest-success');
+  if(btnWrap)btnWrap.style.display='block';
+  if(successEl)successEl.classList.remove('show');
+  const{data:p}=await sb.from('produtos').select('*, profiles(nome,sobrenome,especialidade,foto_url,contato,biografia)').eq('id',id).single();
+  if(!p)return;
+  const m=p.profiles||{};
+  const nome=[m.nome,m.sobrenome].filter(Boolean).join(' ')||'Mentor';
+  const bl={mentoria:'Mentoria',evento:'Evento',software:'Software',outro:'Outro'};
+  const bc={mentoria:'badge-mentoria',evento:'badge-evento',software:'badge-software',outro:'badge-outro'};
+  setText('detail-breadcrumb-type',bl[p.tipo]||p.tipo);setText('detail-breadcrumb-title',p.titulo);
+  setText('detail-mentor-nome',nome);setText('detail-mentor-spec',m.especialidade||'');setText('detail-mentor-bio',m.biografia||'');
+  const avatarEl=document.getElementById('detail-mentor-avatar');
+  if(avatarEl){if(m.foto_url)avatarEl.innerHTML=`<img src="${m.foto_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;else avatarEl.textContent=getInitials(nome);}
+  const badgeEl=document.getElementById('detail-badge');
+  if(badgeEl){badgeEl.className='badge '+(bc[p.tipo]||'badge-outro');badgeEl.textContent=bl[p.tipo]||p.tipo;}
+  setText('detail-titulo',p.titulo);setText('detail-descricao',p.descricao||'');setText('detail-tipo',bl[p.tipo]||p.tipo);
+  const coverEl=document.getElementById('detail-cover');
+  if(coverEl){if(p.logo_url){coverEl.src=p.logo_url;coverEl.style.display='block';}else coverEl.style.display='none';}
+  const vidEl=document.getElementById('detail-video');
+  if(vidEl){if(p.video_url){vidEl.src=p.video_url;vidEl.style.display='block';}else vidEl.style.display='none';}
+  const metaData=document.getElementById('detail-meta-data');
+  if(metaData){if(p.data_evento){setText('detail-data',new Date(p.data_evento).toLocaleDateString('pt-BR'));metaData.style.display='block';}else metaData.style.display='none';}
+  setText('interest-contact-msg',nome+' vai entrar em contato contigo em breve.');
+  const{count}=await sb.from('interesses').select('*',{count:'exact',head:true}).eq('produto_id',id);
+  setText('detail-interessados',(count||0)+' médico'+((count!==1)?'s':''));
+  if(currentUser){
+    const{data:ex}=await sb.from('interesses').select('id').eq('aluno_id',currentUser.id).eq('produto_id',id).maybeSingle();
+    if(ex){if(btnWrap)btnWrap.style.display='none';if(successEl)successEl.classList.add('show');}
   }
 }
 
-async function handleInterest() {
-  if (!currentUser) { openModal('modal-interest-login'); return; }
-  await registerInterestNow();
+async function handleInterest(){if(!currentUser){openModal('modal-interest-login');return;}await registerInterestNow();}
+
+async function registerInterestNow(){
+  if(!currentProductId||!currentUser)return;
+  const{error}=await sb.from('interesses').insert({aluno_id:currentUser.id,produto_id:currentProductId});
+  if(error&&!error.message.includes('duplicate')){showToast('Erro ao registrar interesse.','error');return;}
+  const btnWrap=document.getElementById('interest-btn-wrap');
+  const successEl=document.getElementById('interest-success');
+  if(btnWrap)btnWrap.style.display='none';
+  if(successEl)successEl.classList.add('show');
+  showToast('Interesse registrado!');
 }
 
-async function registerInterestNow() {
-  if (!currentProductId || !currentUser) return;
-  const { error } = await sb.from('interesses').insert({ aluno_id: currentUser.id, produto_id: currentProductId });
-  if (error && error.code !== '23505') { showToast('Erro ao registrar interesse. Tente novamente.','error'); return; }
-  document.getElementById('interest-btn-wrap').style.display = 'none';
-  document.getElementById('interest-success').classList.add('show');
-  showToast('✓ Interesse registrado com sucesso!');
-}
-
-// ═══════════════════════════════════════════
 // PROFILE
-// ═══════════════════════════════════════════
-async function loadProfile() {
-  if (!currentUser) return;
-  const { data: p } = await sb.from('profiles').select('*').eq('id',currentUser.id).single();
-  if (!p) return;
-  currentProfile = p;
-  document.getElementById('pf-nome').value = [p.nome,p.sobrenome].filter(Boolean).join(' ');
-  document.getElementById('pf-especialidade').value = p.especialidade||'';
-  document.getElementById('pf-bio').value = p.biografia||'';
-  document.getElementById('pf-contato').value = p.contato||'';
-  document.getElementById('profile-display-name').textContent = [p.nome,p.sobrenome].filter(Boolean).join(' ');
-  const initials = getInitials(p.nome||currentUser.email);
-  document.getElementById('profile-initials-display').textContent = initials;
-  if (p.foto_url) {
-    const img = document.getElementById('profile-photo-display');
-    img.src=p.foto_url; img.style.display='block';
-    document.getElementById('profile-initials-display').style.display='none';
-  }
+async function loadProfile(){
+  if(!currentUser)return;
+  const{data:p}=await sb.from('profiles').select('*').eq('id',currentUser.id).single();
+  if(!p)return;
+  currentProfile=p;
+  const nome=[p.nome,p.sobrenome].filter(Boolean).join(' ');
+  setVal('pf-nome',nome);setVal('pf-especialidade',p.especialidade||'');setVal('pf-bio',p.biografia||'');setVal('pf-contato',p.contato||'');
+  setText('profile-display-name',nome||currentUser.email);
+  const initials=getInitials(p.nome||currentUser.email);
+  const initialsEl=document.getElementById('profile-initials-display');
+  const imgEl=document.getElementById('profile-photo-display');
+  if(initialsEl)initialsEl.textContent=initials;
+  if(p.foto_url&&imgEl){imgEl.src=p.foto_url;imgEl.style.display='block';if(initialsEl)initialsEl.style.display='none';}
+  else if(imgEl){imgEl.style.display='none';if(initialsEl)initialsEl.style.display='block';}
+  // show/hide remove photo button
+  const rmBtn=document.getElementById('remove-photo-btn');
+  if(rmBtn)rmBtn.style.display=p.foto_url?'inline-flex':'none';
+  updateNavUI();
 }
 
-async function saveProfile() {
-  if (!currentUser) return;
-  const nomeFull = v('pf-nome').trim().split(' ');
-  const nome = nomeFull[0]||'';
-  const sobrenome = nomeFull.slice(1).join(' ')||'';
+async function saveProfile(){
+  if(!currentUser)return;
+  const nomeFull=v('pf-nome').trim().split(/\s+/);
+  const nome=nomeFull[0]||'',sobrenome=nomeFull.slice(1).join(' ')||'';
   setBtnLoading('btn-save-profile',true);
-  const { error } = await sb.from('profiles').update({ nome, sobrenome, especialidade:v('pf-especialidade'), biografia:v('pf-bio'), contato:v('pf-contato') }).eq('id',currentUser.id);
+  const{error}=await sb.from('profiles').update({nome,sobrenome,especialidade:v('pf-especialidade'),biografia:v('pf-bio'),contato:v('pf-contato')}).eq('id',currentUser.id);
   setBtnLoading('btn-save-profile',false);
-  if (error) { showToast('Erro ao salvar perfil.','error'); return; }
-  showToast('✓ Perfil salvo com sucesso!');
-  await loadProfile();
+  if(error){showToast('Erro ao salvar: '+error.message,'error');return;}
+  showToast('Perfil salvo!');await loadProfile();
 }
 
-async function uploadProfilePhoto(event) {
-  const file = event.target.files[0];
-  if (!file || !currentUser) return;
+async function uploadProfilePhoto(event){
+  const file=event.target.files[0];if(!file||!currentUser)return;
   showLoading(true);
-  const ext = file.name.split('.').pop();
-  const path = currentUser.id+'/avatar.'+ext;
-  const { error: upErr } = await sb.storage.from('avatars').upload(path, file, { upsert:true });
-  if (upErr) { showLoading(false); showToast('Erro ao enviar foto.','error'); return; }
-  const { data: urlData } = sb.storage.from('avatars').getPublicUrl(path);
-  await sb.from('profiles').update({ foto_url: urlData.publicUrl }).eq('id',currentUser.id);
-  const img = document.getElementById('profile-photo-display');
-  img.src=urlData.publicUrl+'?t='+Date.now(); img.style.display='block';
-  document.getElementById('profile-initials-display').style.display='none';
+  try{
+    const ext=file.name.split('.').pop().toLowerCase();
+    const path=currentUser.id+'/avatar.'+ext;
+    const{data:upData,error:upErr}=await sb.storage.from('avatars').upload(path,file,{upsert:true,contentType:file.type});
+    if(upErr)throw upErr;
+    const{data:urlData}=sb.storage.from('avatars').getPublicUrl(path);
+    await sb.from('profiles').update({foto_url:urlData.publicUrl}).eq('id',currentUser.id);
+    const imgEl=document.getElementById('profile-photo-display');
+    const initialsEl=document.getElementById('profile-initials-display');
+    if(imgEl){imgEl.src=urlData.publicUrl+'?t='+Date.now();imgEl.style.display='block';}
+    if(initialsEl)initialsEl.style.display='none';
+    if(currentProfile)currentProfile.foto_url=urlData.publicUrl;
+    const rmBtn=document.getElementById('remove-photo-btn');
+    if(rmBtn)rmBtn.style.display='inline-flex';
+    updateNavUI();showToast('Foto atualizada!');
+  }catch(e){showToast('Erro ao enviar foto: '+e.message,'error');}
   showLoading(false);
-  showToast('✓ Foto de perfil atualizada!');
 }
 
-// ═══════════════════════════════════════════
+async function removeProfilePhoto(){
+  if(!currentUser)return;
+  await sb.from('profiles').update({foto_url:null}).eq('id',currentUser.id);
+  const imgEl=document.getElementById('profile-photo-display');
+  const initialsEl=document.getElementById('profile-initials-display');
+  const rmBtn=document.getElementById('remove-photo-btn');
+  if(imgEl){imgEl.src='';imgEl.style.display='none';}
+  if(initialsEl)initialsEl.style.display='block';
+  if(rmBtn)rmBtn.style.display='none';
+  if(currentProfile)currentProfile.foto_url=null;
+  updateNavUI();showToast('Foto removida.');
+}
+
 // VENDOR PRODUCTS
-// ═══════════════════════════════════════════
-async function loadVendorProducts() {
-  if (!currentUser) return;
-  const list = document.getElementById('vendor-products-list');
-  list.innerHTML = '<div style="text-align:center;padding:24px;color:var(--gray-400);">Carregando…</div>';
-  const { data: produtos } = await sb.from('produtos').select('*').eq('mentor_id',currentUser.id).order('criado_em',{ascending:false});
-  if (!produtos||!produtos.length) { list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);">Nenhum produto cadastrado ainda.</div>'; return; }
-  const icons = {mentoria:'📋',evento:'📅',software:'💻',outro:'📦'};
-  list.innerHTML = produtos.map(p=>`
+async function loadVendorProducts(){
+  if(!currentUser)return;
+  const list=document.getElementById('vendor-products-list');if(!list)return;
+  list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);">Carregando…</div>';
+  const{data:produtos,error}=await sb.from('produtos').select('*').eq('mentor_id',currentUser.id).order('criado_em',{ascending:false});
+  if(error){list.innerHTML='<div style="color:var(--danger);padding:16px;">Erro: '+error.message+'</div>';return;}
+  if(!produtos||!produtos.length){list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);">Nenhum produto cadastrado ainda.</div>';return;}
+  const icons={mentoria:'📋',evento:'📅',software:'💻',outro:'📦'};
+  list.innerHTML=produtos.map(p=>`
     <div class="product-list-item">
       <div class="product-list-left">
-        <div class="product-list-thumb">${p.logo_url?`<img src="${p.logo_url}" style="display:block" alt="">`:''} ${!p.logo_url?(icons[p.tipo]||'📦'):''}</div>
-        <div class="product-list-info">
-          <div class="product-list-title">${escHtml(p.titulo)}</div>
-          <span class="badge badge-${p.tipo}" style="margin-top:3px;">${p.tipo}</span>
-        </div>
+        <div class="product-list-thumb">${p.logo_url?`<img src="${p.logo_url}" style="display:block;width:100%;height:100%;object-fit:cover;" alt="">`:icons[p.tipo]||'📦'}</div>
+        <div class="product-list-info"><div class="product-list-title">${escHtml(p.titulo)}</div><span class="badge badge-${p.tipo}" style="margin-top:3px;">${p.tipo}</span></div>
       </div>
       <div class="product-list-actions">
         <div class="toggle-switch ${p.ativo?'':'off'}" onclick="toggleProduct(this,'${p.id}')"><div class="toggle-knob"></div></div>
@@ -1156,258 +1135,233 @@ async function loadVendorProducts() {
     </div>`).join('');
 }
 
-async function toggleProduct(el, prodId) {
-  el.classList.toggle('off');
-  const ativo = !el.classList.contains('off');
-  await sb.from('produtos').update({ ativo }).eq('id',prodId).eq('mentor_id',currentUser.id);
-  showToast(ativo ? '✓ Produto ativado no marketplace' : 'Produto desativado do marketplace');
+async function toggleProduct(el,prodId){
+  el.classList.toggle('off');const ativo=!el.classList.contains('off');
+  const{error}=await sb.from('produtos').update({ativo}).eq('id',prodId).eq('mentor_id',currentUser.id);
+  if(error){el.classList.toggle('off');showToast('Erro ao atualizar.','error');return;}
+  showToast(ativo?'Produto ativado':'Produto desativado');
 }
 
-async function loadVendorInteresses() {
-  if (!currentUser) return;
-  const el = document.getElementById('interesses-list');
-  const { data } = await sb.from('interesses').select(`criado_em, profiles(nome, sobrenome, email:id), produtos!inner(titulo, mentor_id)`).eq('produtos.mentor_id',currentUser.id).order('criado_em',{ascending:false});
-  // Alternativa mais simples: buscar produtos do mentor, depois interesses
-  const { data: meusProd } = await sb.from('produtos').select('id,titulo').eq('mentor_id',currentUser.id);
-  if (!meusProd||!meusProd.length) { el.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);">Nenhum interesse recebido ainda.</div>'; return; }
-  const ids = meusProd.map(p=>p.id);
-  const { data: ints } = await sb.from('interesses').select(`criado_em, produto_id, profiles(nome, sobrenome)`).in('produto_id',ids).order('criado_em',{ascending:false});
-  if (!ints||!ints.length) { el.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);">Nenhum interesse recebido ainda.</div>'; return; }
-  const prodMap = Object.fromEntries(meusProd.map(p=>[p.id,p.titulo]));
+async function loadVendorInteresses(){
+  if(!currentUser)return;
+  const el=document.getElementById('interesses-list');if(!el)return;
+  const{data:meusProd}=await sb.from('produtos').select('id,titulo').eq('mentor_id',currentUser.id);
+  if(!meusProd||!meusProd.length){el.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);">Nenhum interesse recebido ainda.</div>';return;}
+  const ids=meusProd.map(p=>p.id);
+  const{data:ints}=await sb.from('interesses').select('criado_em,produto_id,aluno_id,profiles(nome,sobrenome)').in('produto_id',ids).order('criado_em',{ascending:false});
+  if(!ints||!ints.length){el.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);">Nenhum interesse recebido ainda.</div>';return;}
+  const prodMap=Object.fromEntries(meusProd.map(p=>[p.id,p.titulo]));
   el.innerHTML=`<table class="interests-table"><thead><tr><th>Médico</th><th>Produto</th><th>Data</th></tr></thead><tbody>${ints.map(i=>{
-    const p = i.profiles||{}; const nome=[p.nome,p.sobrenome].filter(Boolean).join(' ')||'–';
+    const pf=i.profiles||{};const nome=[pf.nome,pf.sobrenome].filter(Boolean).join(' ')||'–';
     return `<tr><td><div class="table-user"><div class="table-avatar">${getInitials(nome)}</div><div><div class="table-name">${escHtml(nome)}</div></div></div></td><td>${escHtml(prodMap[i.produto_id]||'–')}</td><td style="color:var(--gray-400);font-size:12px;">${new Date(i.criado_em).toLocaleDateString('pt-BR')}</td></tr>`;
   }).join('')}</tbody></table>`;
 }
 
-// ═══════════════════════════════════════════
 // NEW / EDIT PRODUCT
-// ═══════════════════════════════════════════
-let logoFile = null;
-let videoFile = null;
+let logoFile=null,videoFile=null;
 
-function resetProductForm() {
-  document.getElementById('editing-product-id').value = '';
-  document.getElementById('new-product-title').textContent = 'Cadastrar produto';
-  document.getElementById('new-product-breadcrumb').textContent = 'Novo Produto';
-  document.getElementById('product-type-select').value = '';
-  document.getElementById('fields-after-type').style.display = 'none';
-  document.getElementById('product-titulo').value = '';
-  document.getElementById('product-descricao').value = '';
-  document.getElementById('product-data').value = '';
-  document.getElementById('field-data').classList.remove('visible');
-  document.getElementById('logo-preview-img').style.display='none';
-  document.getElementById('logo-upload-icon').style.display='block';
-  document.getElementById('logo-upload-label').textContent='Clique para enviar a imagem de capa';
-  document.getElementById('video-preview-el').style.display='none';
-  document.getElementById('video-upload-icon').style.display='block';
-  document.getElementById('video-upload-label').textContent='Clique para enviar o vídeo';
-  logoFile = null; videoFile = null;
+function resetProductForm(){
+  setVal('editing-product-id','');setText('new-product-title','Cadastrar produto');setText('new-product-breadcrumb','Novo Produto');
+  const typeEl=document.getElementById('product-type-select');if(typeEl)typeEl.value='';
+  const fb=document.getElementById('fields-after-type');if(fb)fb.style.display='none';
+  setVal('product-titulo','');setVal('product-descricao','');setVal('product-data','');
+  const fd=document.getElementById('field-data');if(fd)fd.classList.remove('visible');
+  resetUploadUI('logo-preview-img','logo-upload-icon','logo-upload-label','Clique para enviar a imagem de capa');
+  resetUploadUI('video-preview-el','video-upload-icon','video-upload-label','Clique para enviar o vídeo',true);
+  const errEl=document.getElementById('product-form-error');if(errEl)errEl.style.display='none';
+  logoFile=null;videoFile=null;
 }
 
-function handleProductType(sel) {
-  const val = sel.value;
-  const block = document.getElementById('fields-after-type');
-  if (!val) { block.style.display='none'; return; }
-  block.style.display='flex';
-  const ph = {mentoria:'Ex: Mentoria Clínica de Alta Performance',evento:'Ex: Imersão de Nutrição Funcional',software:'Ex: MedAgenda Pro',outro:'Título do produto'};
-  document.getElementById('product-titulo').placeholder = ph[val]||'Título do produto';
-  if (val==='evento') document.getElementById('field-data').classList.add('visible');
-  else document.getElementById('field-data').classList.remove('visible');
+function resetUploadUI(previewId,iconId,labelId,defaultLabel,isVideo=false){
+  const preview=document.getElementById(previewId);const icon=document.getElementById(iconId);const label=document.getElementById(labelId);
+  if(preview){if(isVideo)preview.src='';preview.style.display='none';}
+  if(icon)icon.style.display='block';if(label)label.textContent=defaultLabel;
 }
 
-function previewFile(event, previewId, iconId, labelId, type) {
-  const file = event.target.files[0];
-  if (!file) return;
-  if (type==='image') { logoFile=file; const r=new FileReader(); r.onload=e=>{const img=document.getElementById(previewId);img.src=e.target.result;img.style.display='block';document.getElementById(iconId).style.display='none';document.getElementById(labelId).textContent='✓ '+file.name;}; r.readAsDataURL(file); }
-  if (type==='video') { videoFile=file; const url=URL.createObjectURL(file); const vid=document.getElementById(previewId); vid.src=url; vid.style.display='block'; document.getElementById(iconId).style.display='none'; document.getElementById(labelId).textContent='✓ '+file.name; }
+function handleProductType(sel){
+  const val=sel.value;const block=document.getElementById('fields-after-type');
+  if(!val){if(block)block.style.display='none';return;}
+  if(block)block.style.display='flex';
+  const ph={mentoria:'Ex: Mentoria Clínica de Alta Performance',evento:'Ex: Imersão de Nutrição Funcional',software:'Ex: MedAgenda Pro',outro:'Título do produto'};
+  const ti=document.getElementById('product-titulo');if(ti)ti.placeholder=ph[val]||'Título do produto';
+  const fd=document.getElementById('field-data');if(fd){if(val==='evento')fd.classList.add('visible');else fd.classList.remove('visible');}
 }
 
-async function publishProduct() {
-  if (!currentUser) { showToast('Você precisa estar logado.','error'); return; }
-  const tipo = document.getElementById('product-type-select').value;
-  const titulo = v('product-titulo'), desc = v('product-descricao');
-  if (!tipo||!titulo||!desc) { showErr('product-form-error','Preencha tipo, título e descrição.'); return; }
-  setBtnLoading('btn-publish-product',true);
-  showLoading(true);
-  let logo_url = null, video_url = null;
-  if (logoFile) { const {data,error}=await sb.storage.from('produtos-media').upload(currentUser.id+'/logo-'+Date.now()+'.'+logoFile.name.split('.').pop(),logoFile,{upsert:true}); if(!error){const{data:u}=sb.storage.from('produtos-media').getPublicUrl(data.path);logo_url=u.publicUrl;} }
-  if (videoFile) { const {data,error}=await sb.storage.from('produtos-media').upload(currentUser.id+'/video-'+Date.now()+'.'+videoFile.name.split('.').pop(),videoFile,{upsert:true}); if(!error){const{data:u}=sb.storage.from('produtos-media').getPublicUrl(data.path);video_url=u.publicUrl;} }
-  const editId = v('editing-product-id');
-  const payload = { titulo, descricao:desc, tipo, logo_url, video_url, data_evento: v('product-data')||null, mentor_id: currentUser.id };
-  let error;
-  if (editId) { ({error}=await sb.from('produtos').update(payload).eq('id',editId).eq('mentor_id',currentUser.id)); }
-  else { ({error}=await sb.from('produtos').insert(payload)); }
-  showLoading(false); setBtnLoading('btn-publish-product',false);
-  if (error) { showErr('product-form-error','Erro ao publicar produto: '+error.message); return; }
-  showToast('✓ Produto publicado no marketplace!');
-  goTo('vendor-profile');
+function previewFile(event,previewId,iconId,labelId,type){
+  const file=event.target.files[0];if(!file)return;
+  if(type==='image'){logoFile=file;const r=new FileReader();r.onload=e=>{const img=document.getElementById(previewId);if(img){img.src=e.target.result;img.style.display='block';}const ic=document.getElementById(iconId);if(ic)ic.style.display='none';const lb=document.getElementById(labelId);if(lb)lb.textContent='✓ '+file.name;};r.readAsDataURL(file);}
+  if(type==='video'){videoFile=file;const url=URL.createObjectURL(file);const vid=document.getElementById(previewId);if(vid){vid.src=url;vid.style.display='block';}const ic=document.getElementById(iconId);if(ic)ic.style.display='none';const lb=document.getElementById(labelId);if(lb)lb.textContent='✓ '+file.name;}
 }
 
-async function openEditProduct(prodId) {
-  const { data: p } = await sb.from('produtos').select('*').eq('id',prodId).single();
-  if (!p) return;
-  document.getElementById('edit-product-id').value = p.id;
-  document.getElementById('edit-tipo').value = p.tipo;
-  document.getElementById('edit-titulo').value = p.titulo;
-  document.getElementById('edit-descricao').value = p.descricao||'';
-  document.getElementById('edit-data').value = p.data_evento?p.data_evento.slice(0,10):'';
-  document.getElementById('edit-field-data-wrap').style.display = p.tipo==='evento'?'flex':'none';
-  if (p.logo_url) { const img=document.getElementById('edit-logo-preview'); img.src=p.logo_url; img.style.display='block'; document.getElementById('edit-logo-icon').style.display='none'; document.getElementById('edit-logo-label').textContent='Imagem atual'; }
-  if (p.video_url) { const vid=document.getElementById('edit-video-preview'); vid.src=p.video_url; vid.style.display='block'; document.getElementById('edit-video-icon').style.display='none'; document.getElementById('edit-video-label').textContent='Vídeo atual'; }
+async function publishProduct(){
+  if(!currentUser){showToast('Você precisa estar logado.','error');return;}
+  const tipo=document.getElementById('product-type-select').value;
+  const titulo=v('product-titulo'),desc=v('product-descricao');
+  const errEl=document.getElementById('product-form-error');
+  if(!tipo||!titulo||!desc){showErrEl(errEl,'Preencha tipo, título e descrição.');return;}
+  setBtnLoading('btn-publish-product',true);showLoading(true);
+  let logo_url=null,video_url=null;
+  if(logoFile){
+    const path=currentUser.id+'/logo-'+Date.now()+'.'+logoFile.name.split('.').pop();
+    const{data:ud,error:ue}=await sb.storage.from('produtos-media').upload(path,logoFile,{upsert:true,contentType:logoFile.type});
+    if(!ue&&ud){const{data:pu}=sb.storage.from('produtos-media').getPublicUrl(ud.path);logo_url=pu.publicUrl;}
+    else if(ue)console.error('logo upload:',ue);
+  }
+  if(videoFile){
+    const path=currentUser.id+'/video-'+Date.now()+'.'+videoFile.name.split('.').pop();
+    const{data:ud,error:ue}=await sb.storage.from('produtos-media').upload(path,videoFile,{upsert:true,contentType:videoFile.type});
+    if(!ue&&ud){const{data:pu}=sb.storage.from('produtos-media').getPublicUrl(ud.path);video_url=pu.publicUrl;}
+  }
+  const editId=v('editing-product-id');
+  const payload={titulo,descricao:desc,tipo,mentor_id:currentUser.id,data_evento:v('product-data')||null};
+  if(logo_url)payload.logo_url=logo_url;if(video_url)payload.video_url=video_url;
+  let dbError;
+  if(editId){const{error}=await sb.from('produtos').update(payload).eq('id',editId).eq('mentor_id',currentUser.id);dbError=error;}
+  else{const{error}=await sb.from('produtos').insert(payload);dbError=error;}
+  showLoading(false);setBtnLoading('btn-publish-product',false);
+  if(dbError){showErrEl(errEl,'Erro: '+dbError.message);return;}
+  showToast('Produto publicado!');goTo('vendor-profile');
+}
+
+async function openEditProduct(prodId){
+  const{data:p}=await sb.from('produtos').select('*').eq('id',prodId).single();if(!p)return;
+  setVal('edit-product-id',p.id);
+  const tipoEl=document.getElementById('edit-tipo');if(tipoEl)tipoEl.value=p.tipo;
+  setVal('edit-titulo',p.titulo);setVal('edit-descricao',p.descricao||'');setVal('edit-data',p.data_evento?p.data_evento.slice(0,10):'');
+  const dw=document.getElementById('edit-field-data-wrap');if(dw)dw.style.display=p.tipo==='evento'?'flex':'none';
+  const lp=document.getElementById('edit-logo-preview'),li=document.getElementById('edit-logo-icon'),ll=document.getElementById('edit-logo-label');
+  if(p.logo_url&&lp){lp.src=p.logo_url;lp.style.display='block';if(li)li.style.display='none';if(ll)ll.textContent='Imagem atual — clique para trocar';}
+  else{if(lp)lp.style.display='none';if(li)li.style.display='block';if(ll)ll.textContent='Clique para enviar imagem';}
+  const vp=document.getElementById('edit-video-preview'),vi=document.getElementById('edit-video-icon'),vl=document.getElementById('edit-video-label');
+  if(p.video_url&&vp){vp.src=p.video_url;vp.style.display='block';if(vi)vi.style.display='none';if(vl)vl.textContent='Vídeo atual — clique para trocar';}
+  else{if(vp){vp.style.display='none';vp.src='';}if(vi)vi.style.display='block';if(vl)vl.textContent='Clique para enviar vídeo';}
+  const rl=document.getElementById('edit-remove-logo');const rv=document.getElementById('edit-remove-video');
+  if(rl)rl.style.display=p.logo_url?'inline-flex':'none';
+  if(rv)rv.style.display=p.video_url?'inline-flex':'none';
   openModal('modal-edit-product');
 }
 
-async function saveEditProduct() {
-  const id = v('edit-product-id');
-  if (!id||!currentUser) return;
-  setBtnLoading('btn-save-edit',true); showLoading(true);
-  let logo_url = null, video_url = null;
-  const editLogoFile = document.querySelector('#modal-edit-product input[type="file"][accept="image/*"]').files[0];
-  const editVideoFile = document.querySelector('#modal-edit-product input[type="file"][accept="video/*"]').files[0];
-  if (editLogoFile) { const {data,error}=await sb.storage.from('produtos-media').upload(currentUser.id+'/logo-'+Date.now()+'.'+editLogoFile.name.split('.').pop(),editLogoFile,{upsert:true}); if(!error){const{data:u}=sb.storage.from('produtos-media').getPublicUrl(data.path);logo_url=u.publicUrl;} }
-  if (editVideoFile) { const {data,error}=await sb.storage.from('produtos-media').upload(currentUser.id+'/video-'+Date.now()+'.'+editVideoFile.name.split('.').pop(),editVideoFile,{upsert:true}); if(!error){const{data:u}=sb.storage.from('produtos-media').getPublicUrl(data.path);video_url=u.publicUrl;} }
-  const payload = { titulo:v('edit-titulo'), descricao:v('edit-descricao'), tipo:document.getElementById('edit-tipo').value, data_evento:v('edit-data')||null };
-  if (logo_url) payload.logo_url = logo_url;
-  if (video_url) payload.video_url = video_url;
-  const { error } = await sb.from('produtos').update(payload).eq('id',id).eq('mentor_id',currentUser.id);
-  showLoading(false); setBtnLoading('btn-save-edit',false);
-  if (error) { showErr('modal-edit-error','Erro ao salvar: '+error.message); return; }
-  closeModal(); showToast('✓ Produto atualizado com sucesso!');
-  await loadVendorProducts();
+async function saveEditProduct(){
+  const id=v('edit-product-id');if(!id||!currentUser)return;
+  setBtnLoading('btn-save-edit',true);showLoading(true);
+  let logo_url=undefined,video_url=undefined;
+  const elf=document.querySelector('#modal-edit-product input[type="file"][accept="image/*"]').files[0];
+  const evf=document.querySelector('#modal-edit-product input[type="file"][accept="video/*"]').files[0];
+  if(elf){const path=currentUser.id+'/logo-'+Date.now()+'.'+elf.name.split('.').pop();const{data:ud,error:ue}=await sb.storage.from('produtos-media').upload(path,elf,{upsert:true,contentType:elf.type});if(!ue&&ud){const{data:pu}=sb.storage.from('produtos-media').getPublicUrl(ud.path);logo_url=pu.publicUrl;}}
+  if(evf){const path=currentUser.id+'/video-'+Date.now()+'.'+evf.name.split('.').pop();const{data:ud,error:ue}=await sb.storage.from('produtos-media').upload(path,evf,{upsert:true,contentType:evf.type});if(!ue&&ud){const{data:pu}=sb.storage.from('produtos-media').getPublicUrl(ud.path);video_url=pu.publicUrl;}}
+  const payload={titulo:v('edit-titulo'),descricao:v('edit-descricao'),tipo:document.getElementById('edit-tipo').value,data_evento:v('edit-data')||null};
+  if(logo_url!==undefined)payload.logo_url=logo_url;if(video_url!==undefined)payload.video_url=video_url;
+  const{error}=await sb.from('produtos').update(payload).eq('id',id).eq('mentor_id',currentUser.id);
+  showLoading(false);setBtnLoading('btn-save-edit',false);
+  if(error){showErrEl(document.getElementById('modal-edit-error'),'Erro: '+error.message);return;}
+  closeModal();showToast('Produto atualizado!');await loadVendorProducts();
 }
 
-// ═══════════════════════════════════════════
+async function removeMediaFromProduct(field){
+  const id=v('edit-product-id');if(!id||!currentUser)return;
+  const update={};update[field]=null;
+  await sb.from('produtos').update(update).eq('id',id).eq('mentor_id',currentUser.id);
+  if(field==='logo_url'){const lp=document.getElementById('edit-logo-preview'),li=document.getElementById('edit-logo-icon'),ll=document.getElementById('edit-logo-label'),rl=document.getElementById('edit-remove-logo');if(lp){lp.style.display='none';lp.src='';}if(li)li.style.display='block';if(ll)ll.textContent='Clique para enviar imagem';if(rl)rl.style.display='none';}
+  else{const vp=document.getElementById('edit-video-preview'),vi=document.getElementById('edit-video-icon'),vl=document.getElementById('edit-video-label'),rv=document.getElementById('edit-remove-video');if(vp){vp.style.display='none';vp.src='';}if(vi)vi.style.display='block';if(vl)vl.textContent='Clique para enviar vídeo';if(rv)rv.style.display='none';}
+  showToast('Mídia removida.');
+}
+
+// TABS
+function switchTab(btn,panelId){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');const panel=document.getElementById(panelId);if(panel)panel.classList.add('active');
+}
+
+// MODAL
+function openModal(id){document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open'));const el=document.getElementById(id);if(el)el.classList.add('open');}
+function closeModal(){document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open'));}
+function handleOverlayClick(e){if(e.target.classList.contains('modal-overlay'))closeModal();}
+
 // ADMIN
-// ═══════════════════════════════════════════
-const ADMIN_EMAIL = 'admin@aceleradormedico.com.br'; // altere aqui
-
-function resetAdminLock() {
-  document.getElementById('admin-lock').style.display = 'flex';
-  document.getElementById('admin-content').classList.remove('unlocked');
-  document.getElementById('admin-password-input').value = '';
-  document.getElementById('admin-email-input').value = '';
+function resetAdminLock(){
+  const lock=document.getElementById('admin-lock');const content=document.getElementById('admin-content');
+  if(lock)lock.style.display='flex';if(content)content.classList.remove('unlocked');
+  setVal('admin-password-input','');setVal('admin-email-input','');
 }
 
-async function adminLogin() {
-  const email = v('admin-email-input'), senha = v('admin-password-input');
-  if (!email||!senha) { showErr('admin-lock-error','Preencha e-mail e senha.'); return; }
+async function adminLogin(){
+  const email=v('admin-email-input'),senha=v('admin-password-input');
+  const errEl=document.getElementById('admin-lock-error');
+  if(!email||!senha){showErrEl(errEl,'Preencha e-mail e senha.');return;}
   setBtnLoading('btn-admin-login',true);
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+  const{data,error}=await sb.auth.signInWithPassword({email,password:senha});
   setBtnLoading('btn-admin-login',false);
-  if (error) { showErr('admin-lock-error','Credenciais inválidas.'); return; }
-  // verifica se é admin no profile
-  const { data: prof } = await sb.from('profiles').select('tipo').eq('id',data.user.id).single();
-  if (!prof || prof.tipo !== 'admin') {
-    showErr('admin-lock-error','Sua conta não tem acesso de administrador.');
-    await sb.auth.signOut(); return;
-  }
-  document.getElementById('admin-lock').style.display = 'none';
-  document.getElementById('admin-content').classList.add('unlocked');
+  if(error){showErrEl(errEl,'Credenciais inválidas.');return;}
+  const{data:prof}=await sb.from('profiles').select('tipo').eq('id',data.user.id).single();
+  if(!prof||prof.tipo!=='admin'){showErrEl(errEl,'Sua conta não tem acesso de administrador.');await sb.auth.signOut();return;}
+  const lock=document.getElementById('admin-lock');const content=document.getElementById('admin-content');
+  if(lock)lock.style.display='none';if(content)content.classList.add('unlocked');
   await loadAdminData();
 }
 
-async function loadAdminData() {
-  const [{ count: ni }, { count: nu }, { count: nm }, { count: np }] = await Promise.all([
-    sb.from('interesses').select('*',{count:'exact',head:true}),
-    sb.from('profiles').select('*',{count:'exact',head:true}),
-    sb.from('profiles').select('*',{count:'exact',head:true}).eq('tipo','mentor'),
-    sb.from('produtos').select('*',{count:'exact',head:true}).eq('ativo',true)
-  ]);
-  document.getElementById('admin-stat-interesses').textContent = ni||0;
-  document.getElementById('admin-stat-usuarios').textContent = nu||0;
-  document.getElementById('admin-stat-mentores').textContent = nm||0;
-  document.getElementById('admin-stat-produtos').textContent = np||0;
-  // tabela de interesses
-  const { data: ints } = await sb.from('interesses').select(`criado_em, profiles!interesses_aluno_id_fkey(nome,sobrenome), produtos(titulo, tipo, profiles!produtos_mentor_id_fkey(nome,sobrenome))`).order('criado_em',{ascending:false}).limit(100);
-  allInteresses = ints||[];
-  renderAdminTable(allInteresses);
+async function loadAdminData(){
+  try{
+    const[r1,r2,r3,r4]=await Promise.all([
+      sb.from('interesses').select('*',{count:'exact',head:true}),
+      sb.from('profiles').select('*',{count:'exact',head:true}),
+      sb.from('profiles').select('*',{count:'exact',head:true}).eq('tipo','mentor'),
+      sb.from('produtos').select('*',{count:'exact',head:true}).eq('ativo',true)
+    ]);
+    setText('admin-stat-interesses',r1.count||0);setText('admin-stat-usuarios',r2.count||0);
+    setText('admin-stat-mentores',r3.count||0);setText('admin-stat-produtos',r4.count||0);
+  }catch(e){}
+  const{data:ints}=await sb.from('interesses').select('criado_em,profiles!interesses_aluno_id_fkey(nome,sobrenome),produtos(titulo,tipo,profiles!produtos_mentor_id_fkey(nome,sobrenome))').order('criado_em',{ascending:false}).limit(100);
+  allInteresses=ints||[];renderAdminTable(allInteresses);
 }
 
-function renderAdminTable(rows) {
-  const tbody = document.getElementById('admin-interesses-tbody');
-  if (!rows.length) { tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--gray-400);">Nenhum registro.</td></tr>'; return; }
-  const badgeClass = {mentoria:'badge-mentoria',evento:'badge-evento',software:'badge-software',outro:'badge-outro'};
-  tbody.innerHTML = rows.map(i=>{
-    const aluno = i.profiles||{}; const nomeAluno=[aluno.nome,aluno.sobrenome].filter(Boolean).join(' ')||'–';
-    const prod = i.produtos||{}; const mentor = prod.profiles||{}; const nomeMentor=[mentor.nome,mentor.sobrenome].filter(Boolean).join(' ')||'–';
-    return `<tr>
-      <td><div class="table-user"><div class="table-avatar">${getInitials(nomeAluno)}</div><div><div class="table-name">${escHtml(nomeAluno)}</div></div></div></td>
-      <td>${escHtml(prod.titulo||'–')}</td><td>${escHtml(nomeMentor)}</td>
-      <td><span class="badge ${badgeClass[prod.tipo]||'badge-outro'}">${prod.tipo||'–'}</span></td>
-      <td style="color:var(--gray-400);font-size:12px;">${new Date(i.criado_em).toLocaleDateString('pt-BR')}</td>
-    </tr>`;
+function renderAdminTable(rows){
+  const tbody=document.getElementById('admin-interesses-tbody');if(!tbody)return;
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--gray-400);">Nenhum registro.</td></tr>';return;}
+  const bc={mentoria:'badge-mentoria',evento:'badge-evento',software:'badge-software',outro:'badge-outro'};
+  tbody.innerHTML=rows.map(i=>{
+    const a=i.profiles||{};const na=[a.nome,a.sobrenome].filter(Boolean).join(' ')||'–';
+    const p=i.produtos||{};const m=p.profiles||{};const nm=[m.nome,m.sobrenome].filter(Boolean).join(' ')||'–';
+    return `<tr><td><div class="table-user"><div class="table-avatar">${getInitials(na)}</div><div><div class="table-name">${escHtml(na)}</div></div></div></td><td>${escHtml(p.titulo||'–')}</td><td>${escHtml(nm)}</td><td><span class="badge ${bc[p.tipo]||'badge-outro'}">${p.tipo||'–'}</span></td><td style="color:var(--gray-400);font-size:12px;">${new Date(i.criado_em).toLocaleDateString('pt-BR')}</td></tr>`;
   }).join('');
 }
 
-function filterAdminTable(q) {
-  if (!q) { renderAdminTable(allInteresses); return; }
-  const lq = q.toLowerCase();
-  renderAdminTable(allInteresses.filter(i=>{
-    const a=i.profiles||{}; const p=i.produtos||{};
-    return [a.nome,a.sobrenome,p.titulo].join(' ').toLowerCase().includes(lq);
-  }));
+function filterAdminTable(q){if(!q){renderAdminTable(allInteresses);return;}const lq=q.toLowerCase();renderAdminTable(allInteresses.filter(i=>{const a=i.profiles||{};const p=i.produtos||{};return[a.nome,a.sobrenome,p.titulo].join(' ').toLowerCase().includes(lq);}));}
+
+function exportCSV(){
+  const rows=[['Aluno','Produto','Mentor','Tipo','Data'],...allInteresses.map(i=>{const a=i.profiles||{};const p=i.produtos||{};const m=p.profiles||{};return[[a.nome,a.sobrenome].join(' '),p.titulo,[m.nome,m.sobrenome].join(' '),p.tipo,new Date(i.criado_em).toLocaleDateString('pt-BR')];})];
+  const csv=rows.map(r=>r.map(c=>'"'+(c||'').toString().replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='am-connect.csv';a.click();
 }
 
-function exportCSV() {
-  const rows = [['Aluno','Produto','Mentor','Tipo','Data'],...allInteresses.map(i=>{
-    const a=i.profiles||{}; const p=i.produtos||{}; const m=p.profiles||{};
-    return [[a.nome,a.sobrenome].join(' '),p.titulo,[m.nome,m.sobrenome].join(' '),p.tipo,new Date(i.criado_em).toLocaleDateString('pt-BR')];
-  })];
-  const csv = rows.map(r=>r.map(c=>'"'+(c||'').toString().replace(/"/g,'""')+'"').join(',')).join('\n');
-  const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download='am-connect-interesses.csv'; a.click();
-}
-
-// ═══════════════════════════════════════════
-// TABS
-// ═══════════════════════════════════════════
-function switchTab(btn, panelId) {
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById(panelId).classList.add('active');
-}
-
-// ═══════════════════════════════════════════
-// MODAL
-// ═══════════════════════════════════════════
-function openModal(id) {
-  document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open'));
-  document.getElementById(id).classList.add('open');
-}
-function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open')); }
-function handleOverlayClick(e) { if(e.target.classList.contains('modal-overlay')) closeModal(); }
-
-// ═══════════════════════════════════════════
 // UTILS
-// ═══════════════════════════════════════════
-function v(id) { const el=document.getElementById(id); return el?(el.value||'').trim():''; }
-function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function getInitials(name) { if(!name) return '?'; const parts=name.trim().split(' '); return (parts[0][0]+(parts[1]?parts[1][0]:'')).toUpperCase(); }
-function showErr(id, msg) { const el=document.getElementById(id); if(!el) return; el.textContent=msg; el.style.display='block'; setTimeout(()=>{el.style.display='none';},5000); }
-function showLoading(show) { document.getElementById('loading-overlay').classList.toggle('show',show); }
-function setBtnLoading(id, loading) {
-  const btn=document.getElementById(id); if(!btn) return;
-  btn.disabled=loading;
-  if(loading) { btn.dataset.originalText=btn.textContent; btn.innerHTML='<span class="spinner spinner-white"></span>'; }
-  else { btn.textContent=btn.dataset.originalText||btn.textContent; }
+function v(id){const el=document.getElementById(id);return el?(el.value||'').trim():'';}
+function setVal(id,val){const el=document.getElementById(id);if(el)el.value=val||'';}
+function setText(id,val){const el=document.getElementById(id);if(el)el.textContent=val||'';}
+function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function getInitials(name){if(!name)return'?';const p=name.trim().split(/\s+/);return((p[0]?p[0][0]:'')+(p[1]?p[1][0]:'')).toUpperCase()||'?';}
+function showErrEl(el,msg){if(!el)return;el.textContent=msg;el.style.display='block';setTimeout(()=>{el.style.display='none';},6000);}
+function showLoading(show){const el=document.getElementById('loading-overlay');if(el)el.classList.toggle('show',show);}
+function setBtnLoading(id,loading){
+  const btn=document.getElementById(id);if(!btn)return;btn.disabled=loading;
+  if(loading){btn.dataset.originalText=btn.textContent;btn.innerHTML='<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;"></span>';}
+  else{btn.textContent=btn.dataset.originalText||btn.textContent;}
 }
-function translateError(msg) {
-  if(!msg) return 'Erro desconhecido.';
-  if(msg.includes('Invalid login')) return 'E-mail ou senha incorretos.';
-  if(msg.includes('already registered')) return 'Este e-mail já está cadastrado.';
-  if(msg.includes('Password should be')) return 'A senha precisa ter pelo menos 8 caracteres.';
-  if(msg.includes('rate limit')) return 'Muitas tentativas. Aguarde alguns minutos.';
+function translateError(msg){
+  if(!msg)return'Erro desconhecido.';
+  if(msg.includes('Invalid login')||msg.includes('invalid_credentials'))return'E-mail ou senha incorretos.';
+  if(msg.includes('already registered')||msg.includes('User already registered'))return'Este e-mail já está cadastrado.';
+  if(msg.includes('Password should be'))return'A senha precisa ter pelo menos 8 caracteres.';
+  if(msg.includes('rate limit'))return'Muitas tentativas. Aguarde alguns minutos.';
+  if(msg.includes('Email not confirmed'))return'Confirme seu e-mail antes de entrar.';
   return msg;
 }
-function showToast(msg, type='') {
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.className='toast'+(type?' '+type:'');
-  t.classList.add('show');
+function showToast(msg,type=''){
+  const t=document.getElementById('toast');if(!t)return;
+  t.textContent=msg;t.className='toast'+(type?' '+type:'');t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),3500);
 }
+
 </script>
 </body>
 </html>
