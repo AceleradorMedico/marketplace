@@ -977,6 +977,7 @@ async function refreshProfile(){
 
 // ── NAVIGATION ──
 function goTo(id){
+  showLoading(false); // always hide loading when navigating
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   const sc=document.getElementById(id); if(sc) sc.classList.add('active');
   window.scrollTo(0,0);
@@ -1189,6 +1190,8 @@ async function openProduct(id){
   const successEl=document.getElementById('interest-success');
   if(btnWrap) btnWrap.style.display='block';
   if(successEl) successEl.classList.remove('show');
+  // Ensure loading overlay is hidden before proceeding
+  showLoading(false);
   const {data:p}=await sb.from('produtos').select('*,profiles(nome,sobrenome,especialidade,foto_url,contato,biografia)').eq('id',id).single();
   if(!p) return;
   const m=p.profiles||{};
