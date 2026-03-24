@@ -159,7 +159,8 @@
   .interest-contact { font-size:13px; color:#166534; line-height:1.5; }
 
   /* MODAL */
-  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9000; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9000; align-items:center; justify-content:center; pointer-events:none; }
+  .modal-overlay.open { pointer-events:all; }
   .modal-overlay.open { display:flex; }
   .modal { background:var(--white); border-radius:var(--radius); padding:36px; width:100%; max-width:460px; box-shadow:var(--shadow-lg); animation:modalIn .2s ease; max-height:90vh; overflow-y:auto; }
   .modal-lg { max-width:580px; }
@@ -290,8 +291,8 @@
   .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(0,0,0,0.2); border-top-color:var(--black); border-radius:50%; animation:spin .6s linear infinite; }
   .spinner-white { border-color:rgba(255,255,255,0.3); border-top-color:white; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  .loading-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.8); display:none; align-items:center; justify-content:center; z-index:999; }
-  .loading-overlay.show { display:flex; }
+  .loading-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.8); display:none; align-items:center; justify-content:center; z-index:9100; pointer-events:none; }
+  .loading-overlay.show { display:flex; pointer-events:all; }
 
   /* TOAST */
   .toast { position:fixed; bottom:24px; right:24px; background:var(--black); color:var(--white); padding:14px 20px; border-radius:var(--radius-sm); font-size:14px; font-family:'Syne',sans-serif; font-weight:600; box-shadow:var(--shadow-lg); transform:translateY(80px); opacity:0; transition:all .3s; z-index:9999; max-width:340px; }
@@ -497,7 +498,7 @@
         <div class="action-card">
           <div class="action-card-title">Tenho interesse</div>
           <div class="action-card-sub">Deixe seus dados e o mentor entrará em contato contigo diretamente.</div>
-          <div id="interest-btn-wrap"><button class="btn-primary btn-full" onclick="handleInterest()">Quero me conectar →</button></div>
+          <div id="interest-btn-wrap"><button class="btn-primary btn-full" id="btn-quero-conectar" onclick="(function(){document.querySelectorAll('.modal-overlay').forEach(function(m){m.classList.remove('open');});var el=document.getElementById('modal-interest-login');if(el){el.style.display='flex';el.classList.add('open');}})()">Quero me conectar →</button></div>
           <div class="interest-success" id="interest-success">
             <div class="interest-success-title">✓ Interesse registrado!</div>
             <div class="interest-contact" id="interest-contact-msg">O mentor vai entrar em contato contigo em breve.</div>
@@ -1476,8 +1477,8 @@ function switchTab(btn,panelId){
 }
 
 // ── MODAL ──
-function openModal(id){ document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open')); const el=document.getElementById(id); if(el) el.classList.add('open'); }
-function closeModal(){ document.querySelectorAll('.modal-overlay').forEach(m=>m.classList.remove('open')); }
+function openModal(id){ document.querySelectorAll('.modal-overlay').forEach(m=>{m.classList.remove('open');m.style.display='none';}); const el=document.getElementById(id); if(el){el.classList.add('open');el.style.display='flex';} }
+function closeModal(){ document.querySelectorAll('.modal-overlay').forEach(m=>{m.classList.remove('open');m.style.display='none';}); }
 function handleOverlayClick(e){ if(e.target.classList.contains('modal-overlay')) closeModal(); }
 
 // ── ADMIN ──
