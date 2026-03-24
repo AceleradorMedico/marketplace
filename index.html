@@ -499,7 +499,7 @@
           <div class="action-card-title">Tenho interesse</div>
           <div class="action-card-sub">Deixe seus dados e o mentor entrará em contato contigo diretamente.</div>
           <div id="interest-btn-wrap">
-            <button class="btn-primary btn-full" id="btn-quero-conectar" type="button">Quero me conectar →</button>
+            <button class="btn-primary btn-full" id="btn-quero-conectar" type="button" onclick="var m=document.getElementById('modal-interest-login');m.style.display='flex';m.style.alignItems='center';m.style.justifyContent='center';">Quero me conectar →</button>
           </div>
           <div class="interest-success" id="interest-success" style="display:none;">
             <div class="interest-success-title">✓ Interesse registrado!</div>
@@ -926,30 +926,7 @@ document.addEventListener('DOMContentLoaded', function(){
   init();
 });
 
-// Event delegation - catches clicks on btn-quero-conectar regardless of timing
-document.addEventListener('click', function(e){
-  if(e.target && e.target.id === 'btn-quero-conectar'){
-    e.preventDefault(); e.stopPropagation();
-    var modals = document.querySelectorAll('.modal-overlay');
-    modals.forEach(function(m){ m.classList.remove('open'); m.style.display='none'; });
-    var modal = document.getElementById('modal-interest-login');
-    if(modal){
-      modal.style.display='flex';
-      modal.style.position='fixed';
-      modal.style.inset='0';
-      modal.style.background='rgba(0,0,0,0.6)';
-      modal.style.zIndex='9000';
-      modal.style.alignItems='center';
-      modal.style.justifyContent='center';
-      modal.style.pointerEvents='all';
-      modal.classList.add('open');
-    }
-  }
-  // Also handle close button clicks
-  if(e.target && e.target.classList.contains('modal-close')){
-    closeModal();
-  }
-});
+// modal opened via inline onclick on button
 
 sb.auth.onAuthStateChange(async(event, session)=>{
   if(event==='SIGNED_IN' && session){
