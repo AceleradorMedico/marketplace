@@ -499,13 +499,34 @@
           <div class="action-card-title">Tenho interesse</div>
           <div class="action-card-sub">Deixe seus dados e o mentor entrará em contato contigo diretamente.</div>
           <div id="interest-btn-wrap">
-            <button class="btn-primary btn-full" id="btn-quero-conectar" type="button" onclick="var m=document.getElementById('modal-interest-login');m.style.cssText='display:flex;position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;background:rgba(0,0,0,0.6);z-index:9000;align-items:center;justify-content:center;pointer-events:all;';">Quero me conectar →</button>
+            <button class="btn-primary btn-full" type="button" onclick="popupInteresse()">Quero me conectar →</button>
           </div>
-          <div class="interest-success" id="interest-success" style="display:none;">
-            <div class="interest-success-title">✓ Interesse registrado!</div>
-            <div class="interest-contact" id="interest-contact-msg">O mentor vai entrar em contato contigo em breve.</div>
+          <div id="interest-success" style="display:none;background:#F0FDF4;border:1.5px solid #BBF7D0;border-radius:8px;padding:16px;margin-top:12px;">
+            <div style="font-weight:700;color:#16A34A;margin-bottom:4px;">✓ Interesse registrado!</div>
+            <div id="interest-contact-msg" style="font-size:13px;color:#555;"></div>
           </div>
         </div>
+
+<!-- POPUP INTERESSE -->
+<div id="popup-interesse" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:32px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;">Demonstrar interesse</div>
+      <button onclick="fecharPopup()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;line-height:1;">✕</button>
+    </div>
+    <div style="font-size:13px;color:#666;margin-bottom:20px;">Deixe seus dados e o mentor entrará em contato.</div>
+    <div id="popup-erro" style="display:none;background:#FEE2E2;color:#DC2626;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Seu nome *</label>
+      <input id="popup-nome" type="text" placeholder="Dr. João Silva" style="width:100%;padding:10px 14px;border:1.5px solid #E5E5E5;border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Celular *</label>
+      <input id="popup-celular" type="tel" placeholder="(11) 9 9999-9999" style="width:100%;padding:10px 14px;border:1.5px solid #E5E5E5;border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;">
+    </div>
+    <button id="popup-btn-enviar" onclick="enviarInteresse()" style="width:100%;padding:12px;background:#F5A800;border:none;border-radius:8px;font-family:Syne,sans-serif;font-size:15px;font-weight:700;cursor:pointer;">Enviar →</button>
+  </div>
+</div>
       </div>
     </div>
   </div>
@@ -770,22 +791,7 @@
   </div>
 </div>
 
-<!-- MODAL: DEMONSTRAR INTERESSE -->
-<div class="modal-overlay" id="modal-interest-login" onclick="handleOverlayClick(event)">
-  <div class="modal">
-    <div class="modal-header"><div class="modal-title">Demonstrar interesse</div><button class="modal-close" onclick="closeModal()">✕</button></div>
-    <div class="modal-sub">Deixe seus dados e o mentor entrará em contato contigo diretamente.</div>
-    <div id="modal-il-error" class="modal-error"></div>
-    <div class="modal-form">
-      <div class="form-group"><label class="form-label">Seu nome *</label><input class="form-input" id="interesse-nome" type="text" placeholder="Dr. João Silva"></div>
-      <div class="form-group">
-        <label class="form-label">Celular *</label>
-        <input class="form-input" id="interesse-celular" type="tel" placeholder="(11) 9 9999-9999">
-      </div>
-      <button class="btn-primary btn-full" id="btn-interesse-enviar" onclick="submitInteresse()">Enviar interesse →</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- LOGIN + INTERESSE -->
 <div class="modal-overlay" id="modal-login-interest" onclick="handleOverlayClick(event)">
@@ -1197,26 +1203,37 @@ async function openProduct(id){
   setText('detail-interessados',(count||0)+' médico'+((count!==1)?'s':''));
 }
 
-function handleInterest(){ openModal('modal-interest-login'); }
+function popupInteresse(){
+  var p=document.getElementById('popup-interesse');
+  p.style.display='flex';
+  document.getElementById('popup-nome').value='';
+  document.getElementById('popup-celular').value='';
+  document.getElementById('popup-erro').style.display='none';
+}
 
-async function submitInteresse(){
-  const nome=v('interesse-nome'),celular=v('interesse-celular');
-  const errEl=document.getElementById('modal-il-error');
-  if(!nome||!celular){ showErrEl(errEl,'Preencha nome e celular.'); return; }
-  if(!currentProductId){ showErrEl(errEl,'Produto não identificado.'); return; }
-  setBtnLoading('btn-interesse-enviar',true);
-  const payload={produto_id:currentProductId,nome_contato:nome,celular};
+function fecharPopup(){
+  document.getElementById('popup-interesse').style.display='none';
+}
+
+async function enviarInteresse(){
+  var nome=document.getElementById('popup-nome').value.trim();
+  var cel=document.getElementById('popup-celular').value.trim();
+  var erro=document.getElementById('popup-erro');
+  if(!nome||!cel){erro.textContent='Preencha nome e celular.';erro.style.display='block';return;}
+  if(!currentProductId){erro.textContent='Produto não identificado.';erro.style.display='block';return;}
+  var btn=document.getElementById('popup-btn-enviar');
+  btn.disabled=true; btn.textContent='Enviando…';
+  var payload={produto_id:currentProductId,nome_contato:nome,celular:cel};
   if(currentUser) payload.aluno_id=currentUser.id;
-  const {error}=await sb.from('interesses').insert(payload);
-  setBtnLoading('btn-interesse-enviar',false);
-  if(error){ showErrEl(errEl,'Erro: '+error.message); return; }
-  closeModal();
-  setVal('interesse-nome',''); setVal('interesse-celular','');
-  const btnWrap=document.getElementById('interest-btn-wrap');
-  const successEl=document.getElementById('interest-success');
-  if(btnWrap) btnWrap.style.display='none';
-  if(successEl) successEl.classList.add('show');
-  showToast('✓ Interesse registrado! O mentor entrará em contato.');
+  var res=await sb.from('interesses').insert(payload);
+  btn.disabled=false; btn.textContent='Enviar →';
+  if(res.error){erro.textContent='Erro: '+res.error.message;erro.style.display='block';return;}
+  fecharPopup();
+  document.getElementById('interest-btn-wrap').style.display='none';
+  var suc=document.getElementById('interest-success');
+  suc.style.display='block';
+  document.getElementById('interest-contact-msg').textContent='Interesse registrado! O mentor entrará em contato.';
+  showToast('✓ Interesse registrado!');
 }
 
 // ── PROFILE ──
