@@ -482,7 +482,7 @@
           </div>
         </div>
         <div class="detail-product-section">
-          <video id="detail-video" class="detail-video" controls></video>
+          <div id="detail-video-wrap" style="display:none;border-radius:12px;overflow:hidden;aspect-ratio:16/9;background:#000;margin-bottom:20px;"><iframe id="detail-video" style="width:100%;height:100%;border:none;" allowfullscreen></iframe></div>
           <img id="detail-cover" class="detail-cover" alt="">
           <span class="badge" id="detail-badge">–</span>
           <div class="detail-product-title" id="detail-titulo" style="margin-top:12px;">–</div>
@@ -624,7 +624,8 @@
             <div class="form-group"><label class="form-label">Nome completo</label><input class="form-input" id="pf-nome" type="text"></div>
             <div class="form-group"><label class="form-label">Especialidade</label><input class="form-input" id="pf-especialidade" type="text"></div>
           </div>
-          <div class="form-group"><label class="form-label">Biografia</label><textarea class="form-textarea" id="pf-bio"></textarea></div>
+          <div class="form-group"><label class="form-label">Biografia</label><textarea class="form-textarea" id="pf-bio" maxlength="800" oninput="updateCharCount(this,'bio-counter',800)" placeholder="Conte sua especialidade, experiência e o que você oferece…"></textarea>
+          <div style="text-align:right;font-size:12px;color:var(--gray-400);margin-top:4px;"><span id="bio-counter">800</span> caracteres restantes</div></div>
           <div class="form-group"><label class="form-label">Contato (WhatsApp, e-mail ou link)</label><input class="form-input" id="pf-contato" type="text"></div>
           <div style="display:flex;justify-content:flex-end;gap:12px;">
             <button class="btn-secondary" onclick="loadProfile()">Cancelar</button>
@@ -678,7 +679,8 @@
       </div>
       <div id="fields-after-type" style="display:none;flex-direction:column;gap:20px;">
         <div class="form-group"><label class="form-label">Título *</label><input class="form-input" type="text" id="product-titulo" placeholder="Título do produto"></div>
-        <div class="form-group"><label class="form-label">Descrição *</label><textarea class="form-textarea" id="product-descricao" placeholder="Descreva o que você oferece, para quem é indicado, formato e resultados esperados..."></textarea></div>
+        <div class="form-group"><label class="form-label">Descrição *</label><textarea class="form-textarea" id="product-descricao" placeholder="Descreva o que você oferece, para quem é indicado, formato e resultados esperados..." maxlength="800" oninput="updateCharCount(this,'desc-counter',800)"></textarea>
+        <div style="text-align:right;font-size:12px;color:var(--gray-400);margin-top:4px;"><span id="desc-counter">800</span> caracteres restantes</div></div>
         <div class="conditional-field" id="field-data"><label class="form-label">Data do evento *</label><input class="form-input" type="date" id="product-data"></div>
         <div class="form-group">
           <label class="form-label">Logo / imagem de capa</label>
@@ -692,12 +694,12 @@
         </div>
         <div class="form-group">
           <label class="form-label">Vídeo de apresentação <span style="color:var(--gray-400);font-weight:400;">(até 5 min)</span></label>
-          <div class="upload-area" id="video-upload-area">
-            <input type="file" accept="video/*" onchange="previewFile(event,'video-preview-el','video-upload-icon','video-upload-label','video')">
-            <video id="video-preview-el" class="upload-preview-video" controls></video>
-            <div class="upload-icon" id="video-upload-icon">🎬</div>
-            <div class="upload-label" id="video-upload-label">Clique para enviar o vídeo</div>
-            <div class="upload-hint">MP4 ou MOV · Máx. 5 minutos</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <input class="form-input" type="url" id="product-video-url" placeholder="https://youtube.com/watch?v=... ou https://vimeo.com/..." oninput="previewVideoUrl(this.value)">
+            <div class="form-hint">Cole o link do YouTube ou Vimeo. Aceita vídeos não-listados.</div>
+            <div id="video-url-preview" style="display:none;margin-top:8px;border-radius:8px;overflow:hidden;aspect-ratio:16/9;background:#000;">
+              <iframe id="video-url-iframe" style="width:100%;height:100%;border:none;" allowfullscreen></iframe>
+            </div>
           </div>
         </div>
       </div>
@@ -1194,8 +1196,15 @@ async function openProduct(id){
   setText('detail-titulo',p.titulo); setText('detail-descricao',p.descricao||''); setText('detail-tipo',bl[p.tipo]||p.tipo);
   const coverEl=document.getElementById('detail-cover');
   if(coverEl){ if(p.logo_url){coverEl.src=p.logo_url;coverEl.style.display='block';}else coverEl.style.display='none'; }
-  const vidEl=document.getElementById('detail-video');
-  if(vidEl){ if(p.video_url){vidEl.src=p.video_url;vidEl.style.display='block';}else vidEl.style.display='none'; }
+  var detailVidWrap=document.getElementById('detail-video-wrap');
+  var detailVidEl=document.getElementById('detail-video');
+  if(detailVidWrap && detailVidEl){
+    if(p.video_url){
+      var embedUrl=getVideoEmbedUrl(p.video_url);
+      if(embedUrl){ detailVidEl.src=embedUrl; detailVidWrap.style.display='block'; }
+      else { detailVidWrap.style.display='none'; }
+    } else { detailVidWrap.style.display='none'; }
+  }
   const metaData=document.getElementById('detail-meta-data');
   if(metaData){ if(p.data_evento){setText('detail-data',new Date(p.data_evento).toLocaleDateString('pt-BR'));metaData.style.display='block';}else metaData.style.display='none'; }
   setText('interest-contact-msg',nome+' vai entrar em contato contigo em breve.');
@@ -1234,6 +1243,38 @@ async function enviarInteresse(){
   suc.style.display='block';
   document.getElementById('interest-contact-msg').textContent='Interesse registrado! O mentor entrará em contato.';
   showToast('✓ Interesse registrado!');
+}
+
+function updateCharCount(textarea, counterId, max){
+  var remaining = max - textarea.value.length;
+  var el = document.getElementById(counterId);
+  if(!el) return;
+  el.textContent = remaining;
+  el.style.color = remaining < 50 ? 'var(--danger)' : remaining < 150 ? '#F5A800' : 'var(--gray-400)';
+}
+
+function previewVideoUrl(url){
+  var preview = document.getElementById('video-url-preview');
+  var iframe = document.getElementById('video-url-iframe');
+  if(!url || !preview || !iframe){ if(preview) preview.style.display='none'; return; }
+  var embedUrl = getVideoEmbedUrl(url);
+  if(embedUrl){
+    iframe.src = embedUrl;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function getVideoEmbedUrl(url){
+  if(!url) return null;
+  // YouTube: youtube.com/watch?v=ID or youtu.be/ID
+  var yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if(yt) return 'https://www.youtube.com/embed/' + yt[1];
+  // Vimeo: vimeo.com/ID
+  var vi = url.match(/vimeo\.com\/(\d+)/);
+  if(vi) return 'https://player.vimeo.com/video/' + vi[1];
+  return null;
 }
 
 // ── PROFILE ──
@@ -1395,7 +1436,8 @@ function resetProductForm(){
   setVal('product-titulo',''); setVal('product-descricao',''); setVal('product-data','');
   const fd=document.getElementById('field-data'); if(fd) fd.classList.remove('visible');
   resetUploadUI('logo-preview-img','logo-upload-icon','logo-upload-label','Clique para enviar a imagem de capa');
-  resetUploadUI('video-preview-el','video-upload-icon','video-upload-label','Clique para enviar o vídeo',true);
+  var vurl=document.getElementById('product-video-url'); if(vurl) vurl.value='';
+  var vprev=document.getElementById('video-url-preview'); if(vprev) vprev.style.display='none';
   const errEl=document.getElementById('product-form-error'); if(errEl) errEl.style.display='none';
   logoFile=null; videoFile=null;
 }
@@ -1443,15 +1485,13 @@ async function publishProduct(){
     if(!ue && ud){ const {data:pu}=sb.storage.from('produtos-media').getPublicUrl(ud.path); logo_url=pu.publicUrl; }
     else if(ue) console.error('logo upload:',ue.message);
   }
-  if(videoFile){
-    const path=currentUser.id+'/video-'+Date.now()+'.'+videoFile.name.split('.').pop();
-    const {data:ud,error:ue}=await sb.storage.from('produtos-media').upload(path,videoFile,{upsert:true,contentType:videoFile.type});
-    if(!ue && ud){ const {data:pu}=sb.storage.from('produtos-media').getPublicUrl(ud.path); video_url=pu.publicUrl; }
+  var videoUrlInput = document.getElementById('product-video-url');
+  if(videoUrlInput && videoUrlInput.value.trim()){
+    video_url = videoUrlInput.value.trim();
   }
   const editId=v('editing-product-id');
-  const payload={titulo,descricao:desc,tipo,mentor_id:currentUser.id,data_evento:v('product-data')||null};
+  const payload={titulo,descricao:desc,tipo,mentor_id:currentUser.id,data_evento:v('product-data')||null,video_url:video_url};
   if(logo_url) payload.logo_url=logo_url;
-  if(video_url) payload.video_url=video_url;
   let dbError;
   if(editId){
     // UPDATE existing product - only send fields that changed
@@ -1488,8 +1528,8 @@ async function openEditProduct(prodId){
     if(img){ img.src=p.logo_url; img.style.display='block'; } if(ic) ic.style.display='none'; if(lb) lb.textContent='Imagem atual — clique para trocar';
   }
   if(p.video_url){
-    const vid=document.getElementById('video-preview-el'); const ic=document.getElementById('video-upload-icon'); const lb=document.getElementById('video-upload-label');
-    if(vid){ vid.src=p.video_url; vid.style.display='block'; } if(ic) ic.style.display='none'; if(lb) lb.textContent='Vídeo atual — clique para trocar';
+    var vurl=document.getElementById('product-video-url');
+    if(vurl){ vurl.value=p.video_url; previewVideoUrl(p.video_url); }
   }
   logoFile=null; videoFile=null;
   goTo('new-product');
