@@ -624,8 +624,8 @@
             <div class="form-group"><label class="form-label">Nome completo</label><input class="form-input" id="pf-nome" type="text"></div>
             <div class="form-group"><label class="form-label">Especialidade</label><input class="form-input" id="pf-especialidade" type="text"></div>
           </div>
-          <div class="form-group"><label class="form-label">Biografia</label><textarea class="form-textarea" id="pf-bio" maxlength="800" oninput="updateCharCount(this,'bio-counter',800)" placeholder="Conte sua especialidade, experiência e o que você oferece…"></textarea>
-          <div style="text-align:right;font-size:12px;color:var(--gray-400);margin-top:4px;"><span id="bio-counter">800</span> caracteres restantes</div></div>
+          <div class="form-group"><label class="form-label">Biografia</label><textarea class="form-textarea" id="pf-bio" maxlength="350" oninput="updateCharCount(this,'bio-counter',350)" placeholder="Conte sua especialidade, experiência e o que você oferece…"></textarea>
+          <div style="text-align:right;font-size:12px;color:var(--gray-400);margin-top:4px;"><span id="bio-counter">350</span> caracteres restantes</div></div>
           <div class="form-group"><label class="form-label">Contato (WhatsApp, e-mail ou link)</label><input class="form-input" id="pf-contato" type="text"></div>
           <div style="display:flex;justify-content:flex-end;gap:12px;">
             <button class="btn-secondary" onclick="loadProfile()">Cancelar</button>
@@ -679,8 +679,8 @@
       </div>
       <div id="fields-after-type" style="display:none;flex-direction:column;gap:20px;">
         <div class="form-group"><label class="form-label">Título *</label><input class="form-input" type="text" id="product-titulo" placeholder="Título do produto"></div>
-        <div class="form-group"><label class="form-label">Descrição *</label><textarea class="form-textarea" id="product-descricao" placeholder="Descreva o que você oferece, para quem é indicado, formato e resultados esperados..." maxlength="800" oninput="updateCharCount(this,'desc-counter',800)"></textarea>
-        <div style="text-align:right;font-size:12px;color:var(--gray-400);margin-top:4px;"><span id="desc-counter">800</span> caracteres restantes</div></div>
+        <div class="form-group"><label class="form-label">Descrição *</label><textarea class="form-textarea" id="product-descricao" placeholder="Descreva o que você oferece, para quem é indicado, formato e resultados esperados..." maxlength="350" oninput="updateCharCount(this,'desc-counter',350)"></textarea>
+        <div style="text-align:right;font-size:12px;color:var(--gray-400);margin-top:4px;"><span id="desc-counter">350</span> caracteres restantes</div></div>
         <div class="conditional-field" id="field-data"><label class="form-label">Data do evento *</label><input class="form-input" type="date" id="product-data"></div>
         <div class="form-group">
           <label class="form-label">Logo / imagem de capa</label>
@@ -788,7 +788,10 @@
       <div class="form-group"><label class="form-label">E-mail</label><input class="form-input" id="login-email" type="email" placeholder="seu@email.com"></div>
       <div class="form-group"><label class="form-label">Senha</label><div style="position:relative;"><input class="form-input" id="login-senha" type="password" placeholder="••••••••" style="padding-right:44px;" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn-black btn-full" id="btn-login" onclick="doLogin()">Entrar →</button>
-      <div class="modal-footer">Não tem conta? <a href="#" style="color:var(--gold);font-weight:600;" onclick="closeModal();openModal('modal-create-account')">Criar conta →</a></div>
+      <div class="modal-footer" style="display:flex;flex-direction:column;gap:6px;">
+        <div>Não tem conta? <a href="#" style="color:var(--gold);font-weight:600;" onclick="closeModal();openModal('modal-create-account')">Criar conta →</a></div>
+        <div><a href="#" style="color:var(--gray-400);font-size:12px;" onclick="abrirRecuperarSenha()">Esqueci minha senha</a></div>
+      </div>
     </div>
   </div>
 </div>
@@ -900,6 +903,25 @@
       <div style="font-size:13px;color:var(--gray-600);margin-bottom:16px;">Esta ação é permanente e não pode ser desfeita. Todos os seus dados e produtos serão removidos.</div>
       <button class="btn-secondary" style="border-color:#FECACA;color:var(--danger);" onclick="confirmDeleteAccount()">Excluir minha conta</button>
     </div>
+  </div>
+</div>
+
+
+<!-- POPUP RECUPERAR SENHA -->
+<div id="popup-recuperar-senha" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:32px;width:90%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="font-family:Syne,sans-serif;font-size:18px;font-weight:800;">Recuperar senha</div>
+      <button onclick="document.getElementById('popup-recuperar-senha').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;">✕</button>
+    </div>
+    <div style="font-size:13px;color:#666;margin-bottom:20px;">Digite seu e-mail e enviaremos um link para redefinir sua senha.</div>
+    <div id="reset-erro" style="display:none;background:#FEE2E2;color:#DC2626;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
+    <div id="reset-sucesso" style="display:none;background:#F0FDF4;color:#16A34A;padding:10px 14px;border-radius:6px;font-size:13px;margin-bottom:12px;"></div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">E-mail</label>
+      <input id="reset-email" type="email" placeholder="seu@email.com" style="width:100%;padding:10px 14px;border:1.5px solid #E5E5E5;border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;">
+    </div>
+    <button id="btn-reset-enviar" onclick="enviarResetSenha()" style="width:100%;padding:12px;background:#0A0A0A;color:#fff;border:none;border-radius:8px;font-family:Syne,sans-serif;font-size:15px;font-weight:700;cursor:pointer;">Enviar link →</button>
   </div>
 </div>
 
@@ -1578,22 +1600,20 @@ async function loadAdminData(){
     setText('admin-stat-interesses',r1.count||0); setText('admin-stat-usuarios',r2.count||0);
     setText('admin-stat-mentores',r3.count||0); setText('admin-stat-produtos',r4.count||0);
   }catch(e){}
-  const {data:ints}=await sb.from('interesses').select('criado_em,nome_contato,celular,contatado,produtos(titulo,tipo,profiles!produtos_mentor_id_fkey(nome,sobrenome))').order('criado_em',{ascending:false}).limit(100);
+  const {data:ints}=await sb.from('interesses').select('id,criado_em,nome_contato,celular,contatado,produto_id,produtos(titulo,tipo)').order('criado_em',{ascending:false}).limit(100);
   allInteresses=ints||[]; renderAdminTable(allInteresses);
 }
 function renderAdminTable(rows){
   const tbody=document.getElementById('admin-interesses-tbody'); if(!tbody) return;
-  if(!rows.length){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--gray-400);">Nenhum registro.</td></tr>'; return; }
+  if(!rows||!rows.length){ tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--gray-400);">Nenhum interesse registrado ainda.</td></tr>'; return; }
   const bc={mentoria:'badge-mentoria',evento:'badge-evento',software:'badge-software',outro:'badge-outro'};
   tbody.innerHTML=rows.map(i=>{
-    const p=i.produtos||{}; const m=p.profiles||{};
-    const nm=[m.nome,m.sobrenome].filter(Boolean).join(' ')||'–';
+    const p=i.produtos||{};
     const contatadoLabel=i.contatado?'<span style="color:var(--success);font-size:12px;font-weight:600;">✓ Sim</span>':'<span style="color:var(--gray-400);font-size:12px;">Não</span>';
     return `<tr>
       <td><div class="table-name">${escHtml(i.nome_contato||'–')}</div></td>
       <td style="font-size:13px;">${escHtml(i.celular||'–')}</td>
       <td>${escHtml(p.titulo||'–')}</td>
-      <td>${escHtml(nm)}</td>
       <td><span class="badge ${bc[p.tipo]||'badge-outro'}">${p.tipo||'–'}</span></td>
       <td>${contatadoLabel}</td>
     </tr>`;
@@ -1602,7 +1622,7 @@ function renderAdminTable(rows){
 function filterAdminTable(q){
   if(!q){ renderAdminTable(allInteresses); return; }
   const lq=q.toLowerCase();
-  renderAdminTable(allInteresses.filter(i=>{ const p=i.produtos||{}; return[i.nome_contato,i.celular,p.titulo].join(' ').toLowerCase().includes(lq); }));
+  renderAdminTable(allInteresses.filter(i=>{ const p=i.produtos||{}; return[i.nome_contato||'',i.celular||'',p.titulo||''].join(' ').toLowerCase().includes(lq); }));
 }
 function exportCSV(){
   const NL='\n';
@@ -1640,6 +1660,34 @@ function showToast(msg,type=''){
   const t=document.getElementById('toast'); if(!t) return;
   t.textContent=msg; t.className='toast'+(type?' '+type:''); t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+// ── PASSWORD RESET ──
+function abrirRecuperarSenha(){
+  closeModal();
+  document.getElementById('reset-email').value='';
+  document.getElementById('reset-erro').style.display='none';
+  document.getElementById('reset-sucesso').style.display='none';
+  document.getElementById('btn-reset-enviar').textContent='Enviar link →';
+  document.getElementById('popup-recuperar-senha').style.display='flex';
+}
+
+async function enviarResetSenha(){
+  const email=document.getElementById('reset-email').value.trim();
+  const erro=document.getElementById('reset-erro');
+  const sucesso=document.getElementById('reset-sucesso');
+  if(!email){erro.textContent='Digite seu e-mail.';erro.style.display='block';return;}
+  const btn=document.getElementById('btn-reset-enviar');
+  btn.disabled=true; btn.textContent='Enviando…';
+  const {error}=await sb.auth.resetPasswordForEmail(email,{
+    redirectTo: window.location.origin + window.location.pathname
+  });
+  btn.disabled=false; btn.textContent='Enviar link →';
+  if(error){erro.textContent='Erro: '+translateError(error.message);erro.style.display='block';return;}
+  erro.style.display='none';
+  sucesso.textContent='Link enviado! Verifique seu e-mail.';
+  sucesso.style.display='block';
+  setTimeout(()=>{document.getElementById('popup-recuperar-senha').style.display='none';},3000);
 }
 </script>
 </body>
