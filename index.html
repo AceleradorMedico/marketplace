@@ -420,9 +420,11 @@
       <span class="navbar-connect-label">Connect</span>
     </div>
     <div class="navbar-actions" id="navbar-actions-public">
-      <span class="navbar-link" onclick="openModal('modal-login')">Sou Mentor</span>
-      <span class="navbar-link" onclick="goTo('admin-dashboard')">Admin</span>
-      <div class="nav-avatar" id="nav-avatar-main" style="display:none" onclick="goTo('vendor-profile')">
+        <span class="navbar-link" id="nav-btn-mentor" onclick="openModal('modal-login')">Sou Mentor</span>
+        <span class="navbar-link" id="nav-btn-admin" onclick="goTo('admin-dashboard')">Admin</span>
+        <span class="navbar-link" id="nav-btn-perfil" style="display:none" onclick="goTo('vendor-profile')">Meu Perfil</span>
+        <span class="navbar-link" id="nav-btn-sair" style="display:none;color:var(--danger)" onclick="doLogout()">Sair</span>
+        <div class="nav-avatar" id="nav-avatar-main" style="display:none" onclick="goTo('vendor-profile')">
         <img id="nav-avatar-img" alt="">
         <span id="nav-avatar-initials"></span>
       </div>
@@ -743,10 +745,27 @@
         <div class="metric-card"><div class="metric-label">Mentores ativos</div><div class="metric-value" id="admin-stat-mentores">–</div></div>
         <div class="metric-card"><div class="metric-label">Produtos publicados</div><div class="metric-value" id="admin-stat-produtos">–</div></div>
       </div>
-      <div class="admin-table-section">
-        <div class="table-header"><span class="table-title">Registro de interesses</span><div class="filter-input-wrap"><span class="filter-input-icon">🔍</span><input class="filter-input" type="text" placeholder="Filtrar..." oninput="filterAdminTable(this.value)"></div></div>
-        <table><thead><tr><th>Aluno</th><th>Produto</th><th>Mentor</th><th>Tipo</th><th>Data</th></tr></thead><tbody id="admin-interesses-tbody"><tr><td colspan="5" style="text-align:center;padding:32px;color:var(--gray-400);">Carregando…</td></tr></tbody></table>
+      <!-- TABS -->
+      <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:2px solid var(--gray-100);padding-bottom:0;">
+        <button class="tab-btn active" id="admin-tab-btn-interesses" onclick="adminSwitchTab('interesses')" style="padding:10px 20px;border:none;background:none;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer;border-bottom:2px solid var(--gold);margin-bottom:-2px;">Interesses</button>
+        <button class="tab-btn" id="admin-tab-btn-mentores" onclick="adminSwitchTab('mentores')" style="padding:10px 20px;border:none;background:none;font-family:Syne,sans-serif;font-weight:700;font-size:13px;cursor:pointer;color:var(--gray-400);border-bottom:2px solid transparent;margin-bottom:-2px;">Mentores</button>
       </div>
+
+      <!-- INTERESSES PANEL -->
+      <div id="admin-panel-interesses">
+        <div class="admin-table-section">
+          <div class="table-header"><span class="table-title">Registro de interesses</span><div class="filter-input-wrap"><span class="filter-input-icon">🔍</span><input class="filter-input" type="text" placeholder="Filtrar..." oninput="filterAdminTable(this.value)"></div></div>
+          <table><thead><tr><th>Nome</th><th>Celular</th><th>Produto</th><th>Tipo</th><th>Contatado</th></tr></thead><tbody id="admin-interesses-tbody"><tr><td colspan="5" style="text-align:center;padding:32px;color:var(--gray-400);">Carregando…</td></tr></tbody></table>
+        </div>
+      </div>
+
+      <!-- MENTORES PANEL -->
+      <div id="admin-panel-mentores" style="display:none;">
+        <div id="admin-mentores-list" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="text-align:center;padding:24px;color:var(--gray-400);">Carregando…</div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -1019,6 +1038,10 @@ function updateNavUI(){
   const navAvatar=document.getElementById('nav-avatar-main');
   const navInitials=document.getElementById('nav-avatar-initials');
   const navImg=document.getElementById('nav-avatar-img');
+  const btnMentor=document.getElementById('nav-btn-mentor');
+  const btnAdmin=document.getElementById('nav-btn-admin');
+  const btnPerfil=document.getElementById('nav-btn-perfil');
+  const btnSair=document.getElementById('nav-btn-sair');
   if(currentUser && currentProfile){
     const initials=getInitials(currentProfile.nome||currentUser.email);
     if(navAvatar) navAvatar.style.display='flex';
@@ -1027,8 +1050,17 @@ function updateNavUI(){
       if(currentProfile.foto_url){ navImg.src=currentProfile.foto_url+'?t='+Date.now(); navImg.style.display='block'; if(navInitials) navInitials.style.display='none'; }
       else { navImg.style.display='none'; if(navInitials) navInitials.style.display=''; }
     }
+    // Hide "Sou Mentor" and "Admin", show "Meu Perfil" and "Sair"
+    if(btnMentor) btnMentor.style.display='none';
+    if(btnAdmin) btnAdmin.style.display='none';
+    if(btnPerfil) btnPerfil.style.display='';
+    if(btnSair) btnSair.style.display='';
   } else {
     if(navAvatar) navAvatar.style.display='none';
+    if(btnMentor) btnMentor.style.display='';
+    if(btnAdmin) btnAdmin.style.display='';
+    if(btnPerfil) btnPerfil.style.display='none';
+    if(btnSair) btnSair.style.display='none';
   }
 }
 
@@ -1136,9 +1168,20 @@ async function confirmDeleteAccount(){
 async function loadMarketplace(){
   const grid=document.getElementById('products-grid'); if(!grid) return;
   grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);"><div style="width:28px;height:28px;border:3px solid var(--gray-200);border-top-color:var(--black);border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 12px;"></div><div style="font-size:14px;">Carregando…</div></div>';
-  const {data:produtos,error}=await sb.from('produtos').select('*,profiles(nome,sobrenome,especialidade,foto_url)').eq('ativo',true).order('criado_em',{ascending:false});
-  if(error||!produtos){ grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);">Nenhum produto disponível ainda.</div>'; return; }
-  allProducts=produtos; renderProducts(produtos);
+  try{
+    const {data:produtos,error}=await sb.from('produtos')
+      .select('id,titulo,descricao,tipo,logo_url,video_url,ativo,mentor_id,profiles(nome,sobrenome,especialidade,foto_url)')
+      .eq('ativo',true).order('criado_em',{ascending:false});
+    if(error){
+      console.error('loadMarketplace error:',error);
+      grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);">Erro ao carregar. <a href="javascript:void(0)" onclick="loadMarketplace()" style="color:var(--gold);">Tentar novamente</a></div>';
+      return;
+    }
+    allProducts=produtos||[]; renderProducts(allProducts);
+  }catch(e){
+    console.error('loadMarketplace exception:',e);
+    grid.innerHTML='<div style="text-align:center;padding:40px;color:var(--gray-400);">Erro ao carregar. <a href="javascript:void(0)" onclick="loadMarketplace()" style="color:var(--gold);">Tentar novamente</a></div>';
+  }
 }
 
 function renderProducts(produtos){
@@ -1604,6 +1647,7 @@ async function loadAdminData(){
   }catch(e){}
   const {data:ints}=await sb.from('interesses').select('id,criado_em,nome_contato,celular,contatado,produto_id,produtos(titulo,tipo)').order('criado_em',{ascending:false}).limit(100);
   allInteresses=ints||[]; renderAdminTable(allInteresses);
+  loadAdminMentores();
 }
 function renderAdminTable(rows){
   const tbody=document.getElementById('admin-interesses-tbody'); if(!tbody) return;
@@ -1626,6 +1670,64 @@ function filterAdminTable(q){
   const lq=q.toLowerCase();
   renderAdminTable(allInteresses.filter(i=>{ const p=i.produtos||{}; return[i.nome_contato||'',i.celular||'',p.titulo||''].join(' ').toLowerCase().includes(lq); }));
 }
+function adminSwitchTab(tab){
+  var panels=['interesses','mentores'];
+  panels.forEach(function(p){
+    var panel=document.getElementById('admin-panel-'+p);
+    var btn=document.getElementById('admin-tab-btn-'+p);
+    if(panel) panel.style.display=p===tab?'block':'none';
+    if(btn){
+      btn.style.borderBottomColor=p===tab?'var(--gold)':'transparent';
+      btn.style.color=p===tab?'var(--black)':'var(--gray-400)';
+    }
+  });
+  if(tab==='mentores') loadAdminMentores();
+}
+
+async function loadAdminMentores(){
+  const list=document.getElementById('admin-mentores-list'); if(!list) return;
+  list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);">Carregando…</div>';
+  const {data:mentores,error}=await sb.from('profiles').select('id,nome,sobrenome,especialidade,foto_url,aprovado,criado_em').eq('tipo','mentor').order('criado_em',{ascending:false});
+  if(error||!mentores||!mentores.length){
+    list.innerHTML='<div style="text-align:center;padding:24px;color:var(--gray-400);">Nenhum mentor cadastrado.</div>'; return;
+  }
+  list.innerHTML=mentores.map(m=>{
+    const nome=[m.nome,m.sobrenome].filter(Boolean).join(' ')||'Sem nome';
+    const ativo=m.aprovado!==false;
+    const avatar=m.foto_url?`<img src="${m.foto_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" alt="">`:getInitials(nome);
+    const avatarBg=m.foto_url?'transparent':'var(--black)';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:16px;background:var(--white);border:1.5px solid var(--gray-200);border-radius:var(--radius);gap:12px;">
+      <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
+        <div style="width:44px;height:44px;border-radius:50%;background:${avatarBg};overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;font-weight:700;color:var(--gold);">${avatar}</div>
+        <div style="min-width:0;">
+          <div style="font-weight:700;font-size:14px;">${escHtml(nome)}</div>
+          <div style="font-size:12px;color:var(--gray-400);">${escHtml(m.especialidade||'–')}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+        <span style="font-size:12px;font-weight:600;color:${ativo?'var(--success)':'var(--danger)'};">${ativo?'● Ativo':'● Inativo'}</span>
+        <button onclick="toggleMentorAtivo('${m.id}',${ativo},this)" style="padding:6px 14px;border-radius:6px;border:1.5px solid ${ativo?'#FECACA':'#BBF7D0'};background:${ativo?'#FEF2F2':'#F0FDF4'};color:${ativo?'var(--danger)':'var(--success)'};font-size:12px;font-weight:700;cursor:pointer;font-family:Syne,sans-serif;">
+          ${ativo?'Desativar':'Ativar'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleMentorAtivo(mentorId, ativoAtual, btn){
+  const novoStatus=!ativoAtual;
+  btn.disabled=true; btn.textContent='…';
+  // aprovado=false = inativo, aprovado=true = ativo
+  const {error}=await sb.from('profiles').update({aprovado:novoStatus}).eq('id',mentorId);
+  if(error){ btn.disabled=false; btn.textContent=ativoAtual?'Desativar':'Ativar'; showToast('Erro ao atualizar.','error'); return; }
+  // If deactivating, also hide all their products
+  if(!novoStatus){
+    await sb.from('produtos').update({ativo:false}).eq('mentor_id',mentorId);
+  }
+  showToast(novoStatus?'✓ Mentor ativado':'Mentor desativado');
+  loadAdminMentores(); // reload list
+}
+
 function exportCSV(){
   const NL='\n';
   const rows=[['Nome','Celular','Produto','Mentor','Tipo','Data','Contatado'],...allInteresses.map(i=>{
