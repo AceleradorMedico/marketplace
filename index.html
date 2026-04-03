@@ -420,7 +420,7 @@
       <span class="navbar-connect-label">Connect</span>
     </div>
     <div class="navbar-actions" id="navbar-actions-public">
-      <span class="navbar-link" onclick="goTo('vendor-register')">Sou Mentor</span>
+      <span class="navbar-link" onclick="openModal('modal-login')">Sou Mentor</span>
       <span class="navbar-link" onclick="goTo('admin-dashboard')">Admin</span>
       <div class="nav-avatar" id="nav-avatar-main" style="display:none" onclick="goTo('vendor-profile')">
         <img id="nav-avatar-img" alt="">
@@ -789,8 +789,8 @@
       <div class="form-group"><label class="form-label">Senha</label><div style="position:relative;"><input class="form-input" id="login-senha" type="password" placeholder="••••••••" style="padding-right:44px;" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn-black btn-full" id="btn-login" onclick="doLogin()">Entrar →</button>
       <div class="modal-footer" style="display:flex;flex-direction:column;gap:6px;">
-        <div>Não tem conta? <a href="#" style="color:var(--gold);font-weight:600;" onclick="closeModal();openModal('modal-create-account')">Criar conta →</a></div>
-        <div><a href="#" style="color:var(--gray-400);font-size:12px;" onclick="abrirRecuperarSenha()">Esqueci minha senha</a></div>
+        <div>Mentor sem conta? <a href="#" style="color:var(--gold);font-weight:600;" onclick="closeModal();goTo('vendor-register')">Criar conta →</a></div>
+        <div><a href="javascript:void(0)" style="color:var(--gray-400);font-size:12px;" onclick="abrirRecuperarSenha()">Esqueci minha senha</a></div>
       </div>
     </div>
   </div>
@@ -1230,8 +1230,10 @@ async function openProduct(id){
   const metaData=document.getElementById('detail-meta-data');
   if(metaData){ if(p.data_evento){setText('detail-data',new Date(p.data_evento).toLocaleDateString('pt-BR'));metaData.style.display='block';}else metaData.style.display='none'; }
   setText('interest-contact-msg',nome+' vai entrar em contato contigo em breve.');
-  const {count}=await sb.from('interesses').select('*',{count:'exact',head:true}).eq('produto_id',id);
-  setText('detail-interessados',(count||0)+' médico'+((count!==1)?'s':''));
+  try{
+    const {count:ic,error:ce}=await sb.from('interesses').select('*',{count:'exact',head:true}).eq('produto_id',id);
+    if(!ce) setText('detail-interessados',(ic||0)+' médico'+((ic!==1)?'s':''));
+  }catch(e){}
 }
 
 function popupInteresse(){
