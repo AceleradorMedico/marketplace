@@ -1043,15 +1043,18 @@
     <div class="field">
       <label>Categoria *</label>
       <select id="link-cat">
-        <option value="copy_paginas">Copy de Páginas</option>
-        <option value="criativos">Criativos</option>
-        <option value="mensagens">Mensagens</option>
-        <option value="ligacoes">Ligações</option>
+        <option value="copy_paginas">Copy - Páginas</option>
+        <option value="copy_criativos">Copy - Criativos</option>
+        <option value="copy_mensagens">Copy - Mensagens</option>
+        <option value="copy_ligacoes">Copy - Ligações</option>
+        <option value="copy_materiais">Copy - Materiais de Apoio</option>
+        <option value="audio">Áudio</option>
         <option value="ads_estaticos">Ads Estáticos</option>
         <option value="ads_video">Ads Vídeo</option>
         <option value="pagina_captura">Página de Captura</option>
         <option value="pagina_venda">Página de Venda</option>
         <option value="pagina_obrigado">Página de Obrigado</option>
+        <option value="design_geral">Design Geral</option>
       </select>
     </div>
     <div class="field">
@@ -1174,7 +1177,7 @@
 // CONFIG SUPABASE
 // ============================================================
 const SUPABASE_URL = 'https://lscviwtqczikgqtaoftb.supabase.co';
-const SUPABASE_ANON_KEY = 'SUA_ANON_KEY_AQUI';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzY3Zpd3RxY3ppa2dxdGFvZnRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MzY3OTcsImV4cCI6MjA5MDIxMjc5N30.k84a_EoU97H7FVr5rOdspADSD7vZ4IbhBSNjg8Vg0cQ';
 
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -1192,15 +1195,18 @@ let currentFunilId = null;
 // CATEGORIAS
 // ============================================================
 const CATEGORIAS = {
-  copy_paginas: 'Copy de Páginas',
-  criativos: 'Criativos',
-  mensagens: 'Mensagens',
-  ligacoes: 'Ligações',
+  copy_paginas: 'Copy - Páginas',
+  copy_criativos: 'Copy - Criativos',
+  copy_mensagens: 'Copy - Mensagens',
+  copy_ligacoes: 'Copy - Ligações',
+  copy_materiais: 'Copy - Materiais de Apoio',
+  audio: 'Áudio',
   ads_estaticos: 'Ads Estáticos',
   ads_video: 'Ads Vídeo',
   pagina_captura: 'Página de Captura',
   pagina_venda: 'Página de Venda',
-  pagina_obrigado: 'Página de Obrigado'
+  pagina_obrigado: 'Página de Obrigado',
+  design_geral: 'Design Geral'
 };
 
 const CANAIS_LABEL = { ads: 'Ads', disparo: 'Disparo', ligacao: 'Ligação', sms: 'SMS' };
